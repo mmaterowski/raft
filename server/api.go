@@ -29,5 +29,5 @@ func handleRequests() {
 	http.Handle("/", r)
 	r.HandleFunc("/", home)
 	r.HandleFunc("/status", getStatus)
-	log.Fatal(http.ListenAndServe(":10001", nil))
+	log.Fatal(http.ListenAndServe(":6969", nil))
 }

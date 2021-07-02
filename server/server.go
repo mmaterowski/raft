@@ -20,6 +20,7 @@ const (
 )
 
 func startServer() {
+	print("Started server")
 	handleRequests()
 	//getLogFromPersistence
 	//rebuildStateServerState
