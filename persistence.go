@@ -4,8 +4,6 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-
-	"github.com/segmentio/ksuid"
 )
 
 func RemoveContents(dir string) error {
@@ -27,9 +25,9 @@ func RemoveContents(dir string) error {
 	return nil
 }
 
-func WriteToFile(id ksuid.KSUID, payload string) {
+func WriteToFile(id string, payload string) {
 	data := []byte(payload)
-	path := "persistence/" + id.String()
+	path := "persistence/" + string(id)
 	err := ioutil.WriteFile(path, data, 0644)
 	check(err)
 }
