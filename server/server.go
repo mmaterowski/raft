@@ -1,11 +1,15 @@
 package main
 
-import "github.com/segmentio/ksuid"
+import (
+	"github.com/segmentio/ksuid"
+)
 
 var serverLog []string
 var currentTerm int
 var votedFor ksuid.KSUID
 var serverId string
+var stateMachine map[string]int
+var serverType ServerType
 
 type ServerType int
 
@@ -16,5 +20,9 @@ const (
 )
 
 func startServer() {
+	handleRequests()
+	//getLogFromPersistence
+	//rebuildStateServerState
+	//setElectionTimer?
 
 }

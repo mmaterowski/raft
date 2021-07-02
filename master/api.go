@@ -1,4 +1,4 @@
-package main
+package raftserver
 
 import (
 	"fmt"
@@ -31,7 +31,7 @@ func home(w http.ResponseWriter, r *http.Request) {
 func handleRequests() {
 	r := mux.NewRouter()
 	http.Handle("/", r)
-	r.HandleFunc("/", getKey)
+	r.HandleFunc("/", home)
 	r.HandleFunc("/get/{key}", getKey)
 	r.HandleFunc("/put/{key}/{value}", putKey)
 	log.Fatal(http.ListenAndServe(":10000", nil))
