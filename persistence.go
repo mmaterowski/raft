@@ -4,6 +4,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 func RemoveContents(dir string) error {
@@ -25,9 +26,10 @@ func RemoveContents(dir string) error {
 	return nil
 }
 
-func WriteToFile(id string, payload string) {
+func WriteToFile(id string, filename string, payload string) {
 	data := []byte(payload)
-	path := "persistence/" + string(id)
+	strings.Title(id)
+	path := "persistence/" + strings.Title(id) + "/" + filename
 	err := ioutil.WriteFile(path, data, 0644)
 	check(err)
 }
