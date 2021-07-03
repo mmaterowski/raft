@@ -3,6 +3,7 @@ module example.com/hello
 go 1.16
 
 require (
+	github.com/go-redis/redis v6.15.9+incompatible // indirect
 	github.com/gomodule/redigo v1.8.5 // indirect
 	github.com/gorilla/mux v1.8.0 // indirect
 	github.com/mediocregopher/radix/v3 v3.7.0 // indirect

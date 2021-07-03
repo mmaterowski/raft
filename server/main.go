@@ -1,6 +1,7 @@
 package main
 
 import (
+	"log"
 	"sync"
 )
 
@@ -8,7 +9,10 @@ var done bool
 var mu sync.Mutex
 
 func main() {
+	log.Print(getAsciiHelloString())
+
 	startServer()
+
 	server1 := "Ricky"
 	server2 := "Laszlo"
 	server3 := "Kim"

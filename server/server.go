@@ -1,6 +1,8 @@
 package main
 
 import (
+	"log"
+
 	"github.com/segmentio/ksuid"
 )
 
@@ -20,7 +22,12 @@ const (
 )
 
 func startServer() {
-	print("Started server")
+	log.Print("Starting server...")
+	connected := ConnectToRedis("redis:6379")
+	if connected {
+		log.Print("Connected to redis")
+	}
+
 	handleRequests()
 	//getLogFromPersistence
 	//rebuildStateServerState

@@ -1,9 +1,5 @@
 version: '3'
 services:
-    go:
-        build: ./server
-        ports:
-          - "6969:6969"
     redis:
         image: redis:latest
         ports:
@@ -12,3 +8,8 @@ services:
             - ./config/redis.conf:/redis.conf
             - ./redis-volume:/data
         command: [ "redis-server", "/redis.conf" ]
+    go:
+        build: ./server
+        ports:
+          - "6969:6969"
+    

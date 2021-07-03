@@ -2,10 +2,27 @@ package main
 
 import (
 	"io/ioutil"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/go-redis/redis"
 )
+
+var redisClient redis.Client
+
+func ConnectToRedis(address string) bool {
+	client := redis.NewClient(&redis.Options{
+		Addr:     address,
+		Password: "",
+		DB:       0,
+	})
+	log.Print("Trying to connect")
+	pong, err := client.Ping().Result()
+	redisClient = *client
+	return pong != "" && err == nil
+}
 
 func RemoveContents(dir string) error {
 	d, err := os.Open(dir)
