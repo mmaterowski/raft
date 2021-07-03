@@ -12,9 +12,16 @@ import (
 
 var redisClient redis.Client
 
-func ConnectToRedis(address string) bool {
+func ConnectToRedis() bool {
+	redisPort := os.Getenv("REDIS_PORT")
+	if redisPort == "" {
+		log.Fatal("No redis port specified. Check Your environmental variable 'REDIS_PORT'")
+
+	}
+	redisAddress := strings.ToLower(serverId) + "-redis:" + redisPort
+	log.Print("Address:" + redisAddress)
 	client := redis.NewClient(&redis.Options{
-		Addr:     address,
+		Addr:     redisAddress,
 		Password: "",
 		DB:       0,
 	})

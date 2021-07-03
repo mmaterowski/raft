@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"os"
 
 	"github.com/segmentio/ksuid"
 )
@@ -21,9 +22,10 @@ const (
 	Candidate                       // EnumIndex = 3
 )
 
-func startServer() {
+func startServer(id string) {
 	log.Print("Starting server...")
-	connected := ConnectToRedis("redis:6379")
+	setServerIdFromEnv()
+	connected := ConnectToRedis()
 	if connected {
 		log.Print("Connected to redis")
 	}
@@ -33,4 +35,11 @@ func startServer() {
 	//rebuildStateServerState
 	//setElectionTimer?
 
+}
+
+func setServerIdFromEnv() {
+	serverId = os.Getenv("SERVER_ID")
+	if serverId == "" {
+		log.Fatal("Server id not set. Check Your environmental variable 'SERVER_ID'")
+	}
 }

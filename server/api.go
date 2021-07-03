@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 
 	"github.com/gorilla/mux"
 	"gopkg.in/matryer/respond.v1"
@@ -68,5 +69,5 @@ func handleRequests() {
 	r.HandleFunc("/status", getStatus)
 	r.HandleFunc("/get/{key}", getKey)
 	r.HandleFunc("/put/{key}/{value}", putKey)
-	log.Fatal(http.ListenAndServe(":6969", nil))
+	log.Fatal(http.ListenAndServe(":"+os.Getenv("SERVER_PORT"), nil))
 }

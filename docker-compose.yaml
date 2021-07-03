@@ -1,15 +1,57 @@
 version: '3'
 services:
-    redis:
+    kim-redis:
         image: redis:latest
         ports:
             - 6379:6379
         volumes:
-            - ./config/redis.conf:/redis.conf
-            - ./redis-volume:/data
+            - ./config/kim-redis.conf:/redis.conf
+            - ./db/kim:/data
         command: [ "redis-server", "/redis.conf" ]
-    go:
+    kim:
         build: ./server
         ports:
           - "6969:6969"
+        depends_on:
+          - kim-redis
+        environment:
+            - SERVER_ID=Kim
+            - SERVER_PORT=6969
+            - REDIS_PORT=6379
+    ricky-redis:
+        image: redis:latest
+        ports:
+            - 6380:6380
+        volumes:
+            - ./config/ricky-redis.conf:/redis.conf
+            - ./db/ricky:/data
+        command: [ "redis-server", "/redis.conf" ]
+    ricky:
+        build: ./server
+        ports:
+            - "6970:6970"
+        depends_on:
+            - ricky-redis
+        environment:
+            - SERVER_ID=Ricky
+            - SERVER_PORT=6970
+            - REDIS_PORT=6380            
+    laszlo-redis:
+        image: redis:latest
+        ports:
+            - 6381:6381
+        volumes:
+            - ./config/laszlo-redis.conf:/redis.conf
+            - ./db/laszlo:/data
+        command: [ "redis-server", "/redis.conf" ]
+    laszlo:
+        build: ./server
+        ports:
+            - "6971:6971"
+        depends_on:
+            - laszlo-redis
+        environment:
+            - SERVER_ID=Laszlo
+            - SERVER_PORT=6971
+            - REDIS_PORT=6381                        
     

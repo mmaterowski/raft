@@ -10,12 +10,10 @@ var mu sync.Mutex
 
 func main() {
 	log.Print(getAsciiHelloString())
-
-	startServer()
-
 	server1 := "Ricky"
 	server2 := "Laszlo"
 	server3 := "Kim"
+	startServer(server1)
 
 	currentTerm := 3
 	lastLogIndex := 0
