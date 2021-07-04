@@ -18,6 +18,8 @@ services:
             - SERVER_ID=Kim
             - SERVER_PORT=6969
             - REDIS_PORT=6379
+        volumes:
+            - ./db/kim:/data
     ricky-redis:
         image: redis:latest
         ports:
@@ -35,7 +37,9 @@ services:
         environment:
             - SERVER_ID=Ricky
             - SERVER_PORT=6970
-            - REDIS_PORT=6380            
+            - REDIS_PORT=6380     
+        volumes:
+            - ./db/ricky:/data       
     laszlo-redis:
         image: redis:latest
         ports:
@@ -53,5 +57,7 @@ services:
         environment:
             - SERVER_ID=Laszlo
             - SERVER_PORT=6971
-            - REDIS_PORT=6381                        
+            - REDIS_PORT=6381
+        volumes:
+            - ./db/laszlo:/data
     
