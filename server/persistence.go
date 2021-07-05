@@ -36,13 +36,11 @@ func GetEntryAtIndex(index int) bool {
 
 func GetCurrentTerm() int {
 	selectStatement := fmt.Sprintf(`SELECT CurrentTerm FROM Term WHERE "UniqueEntryId"="%s"`, uniqueEntryId)
-	log.Print(selectStatement)
 	currentTermNumber := 0
 	sqlRes := ""
 	err := db.QueryRow(selectStatement).Scan(&sqlRes)
 	//TODO Check for null
 	currentTermNumber, _ = strconv.Atoi(sqlRes)
-	log.Print(currentTermNumber)
 	if err != nil {
 		log.Printf("%s", err.Error())
 		return currentTermNumber
@@ -52,7 +50,6 @@ func GetCurrentTerm() int {
 
 func GetVotedFor() string {
 	selectStatement := fmt.Sprintf(`SELECT VotedForId FROM VotedFor WHERE "UniqueEntryId"="%s"`, uniqueEntryId)
-	log.Print(selectStatement)
 	foundId := ""
 	err := db.QueryRow(selectStatement).Scan(&foundId)
 	if err != nil {
@@ -60,6 +57,20 @@ func GetVotedFor() string {
 		return foundId
 	}
 	return foundId
+}
+
+func GetLog() []Entry {
+	selectStatement := `SELECT * FROM Entries ORDER BY "Index"`
+	rows, err := db.Query(selectStatement)
+	Check(err)
+	entries := []Entry{}
+	for rows.Next() {
+		var entry Entry
+		err = rows.Scan(&entry.Index, &entry.Value, &entry.Key, &entry.TermNumber)
+		Check(err)
+		entries = append(entries, entry)
+	}
+	return entries
 }
 
 func connectToSql() bool {

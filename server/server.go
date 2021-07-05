@@ -11,7 +11,7 @@ var serverLog []string
 var currentTerm int
 var votedFor string
 var serverId string
-var state map[string]int
+var state map[string]int = make(map[string]int)
 var serverType ServerType
 var debug = true
 
@@ -44,9 +44,12 @@ func startServer(id string) {
 	setServerIdFromEnv()
 	votedFor = GetVotedFor()
 	currentTerm = GetCurrentTerm()
+	stateRebuilt := RebuildStateFromLog()
+	if !stateRebuilt {
+		log.Panic("Couldn't rebuild state")
+	}
 	handleRequests()
-	// setCurrentTerm()
-	//rebuildStateServerState
+
 	//setElectionTimer?
 
 }

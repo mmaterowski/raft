@@ -1,13 +1,15 @@
 package main
 
-func check(e error) {
+import "log"
+
+func Check(e error) {
 	if e != nil {
 		panic(e)
 	}
 }
 
-func getAsciiHelloString() string {
-	return `
+func PrintAsciiHelloString() {
+	log.Print(`
     Raft implementation by Michal Materowski, 2k21
 	.----------------.  .----------------.  .----------------.  .----------------. 
 	| .--------------. || .--------------. || .--------------. || .--------------. |
@@ -22,5 +24,5 @@ func getAsciiHelloString() string {
 	 '----------------'  '----------------'  '----------------'  '----------------' 
 	 
 								 
-  `
+  `)
 }
