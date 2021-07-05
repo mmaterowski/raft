@@ -62,7 +62,7 @@ func putKey(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	success := putValue(key, value, currentTerm)
+	success := PutValue(key, value, currentTerm)
 	data := PutResponse{Success: success}
 	respond.With(w, r, http.StatusOK, data)
 }

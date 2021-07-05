@@ -21,7 +21,7 @@ func SetupDB() bool {
 	return tablesInitialized
 }
 
-func putValue(key string, value int, termNumber int) bool {
+func PutValue(key string, value int, termNumber int) bool {
 	statement, _ := db.Prepare("INSERT INTO Entries (Value, Key, TermNumber) VALUES (?, ?, ?)")
 	success := executeSafely(statement, key, value, termNumber)
 	return success
@@ -38,14 +38,27 @@ func GetCurrentTerm() int {
 	selectStatement := fmt.Sprintf(`SELECT CurrentTerm FROM Term WHERE "UniqueEntryId"="%s"`, uniqueEntryId)
 	currentTermNumber := 0
 	sqlRes := ""
+
 	err := db.QueryRow(selectStatement).Scan(&sqlRes)
-	//TODO Check for null
-	currentTermNumber, _ = strconv.Atoi(sqlRes)
 	if err != nil {
 		log.Printf("%s", err.Error())
 		return currentTermNumber
 	}
+
+	currentTermNumber, convError := strconv.Atoi(sqlRes)
+	if convError != nil {
+		log.Print(convError)
+		return currentTermNumber
+	}
+
 	return currentTermNumber
+}
+
+func SetCurrentTerm(currentTerm int) bool {
+	insertStatement := fmt.Sprintf(`UPDATE Term SET CurrentTerm="%d" WHERE UniqueEntryId="%s"`, currentTerm, uniqueEntryId)
+	statement, _ := db.Prepare(insertStatement)
+	success := executeSafely(statement)
+	return success
 }
 
 func GetVotedFor() string {
@@ -57,6 +70,13 @@ func GetVotedFor() string {
 		return foundId
 	}
 	return foundId
+}
+
+func SetVotedFor(votedForId string) bool {
+	insertStatement := fmt.Sprintf(`UPDATE VotedFor SET VotedForId="%s" WHERE UniqueEntryId="%s"`, votedForId, uniqueEntryId)
+	statement, _ := db.Prepare(insertStatement)
+	success := executeSafely(statement)
+	return success
 }
 
 func GetLog() []Entry {
