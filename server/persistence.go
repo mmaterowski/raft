@@ -8,7 +8,17 @@ import (
 
 var db *sql.DB
 
-func ConnectToSql() bool {
+func setupDB() bool {
+	connected := connectToSql()
+	if !connected {
+		log.Print("Error connecting to SQL")
+		return false
+	}
+	tablesInitialized := initTablesIfNeeded()
+	return tablesInitialized
+}
+
+func connectToSql() bool {
 	dbPath := "../data/raft-db/log.db"
 	if debug {
 		dbPath = "./log.db"
@@ -24,13 +34,14 @@ func ConnectToSql() bool {
 	return database != nil
 }
 
-func InitTablesIfNeeded() {
-	createEntriesTableIfNotExists()
-	createTermTableIfNotExists()
-	createVotedForIfNotExists()
+func initTablesIfNeeded() bool {
+	entriesCreated := createEntriesTableIfNotExists()
+	termCreated := createTermTableIfNotExists()
+	votedForCreated := createVotedForIfNotExists()
+	return entriesCreated && termCreated && votedForCreated
 }
 
-func createEntriesTableIfNotExists() {
+func createEntriesTableIfNotExists() bool {
 	createStatement, err := db.Prepare(`CREATE TABLE IF NOT EXISTS "Entries" (
 		"Index"	INTEGER,
 		"Value"	INTEGER,
@@ -40,23 +51,27 @@ func createEntriesTableIfNotExists() {
 	)`)
 	if err != nil {
 		log.Print(err)
+		return false
 	}
-	executeSafely(createStatement)
+	success := executeSafely(createStatement)
+	return success
 
 }
 
-func createTermTableIfNotExists() {
+func createTermTableIfNotExists() bool {
 	createStatement, err := db.Prepare(`CREATE TABLE "Term" (
 		"currentTerm"	INTEGER
 	, "UniqueEntryId"	INTEGER)`)
 	if err != nil {
 		log.Print(err)
+		return false
 	}
-	executeSafely(createStatement)
+	success := executeSafely(createStatement)
+	return success
 
 }
 
-func createVotedForIfNotExists() {
+func createVotedForIfNotExists() bool {
 	createStatement, err := db.Prepare(`CREATE TABLE "VotedFor" (
 		"Id"	TEXT,
 		"UniqueEntryId"	TEXT
@@ -64,20 +79,24 @@ func createVotedForIfNotExists() {
 	if err != nil {
 		log.Print(err)
 	}
-	executeSafely(createStatement)
-
+	success := executeSafely(createStatement)
+	return success
 }
 
-func executeSafely(sqlStatement *sql.Stmt, args ...interface{}) {
+func executeSafely(sqlStatement *sql.Stmt, args ...interface{}) bool {
 	if args != nil {
 		_, errWithArgs := sqlStatement.Exec(args)
 		if errWithArgs != nil {
 			log.Print(errWithArgs)
+			return false
+
 		}
-		return
+		return true
 	}
 	_, err := sqlStatement.Exec()
 	if err != nil {
 		log.Print(err)
+		return false
 	}
+	return true
 }

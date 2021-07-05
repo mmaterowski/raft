@@ -10,9 +10,9 @@ var mu sync.Mutex
 
 func main() {
 	log.Print(getAsciiHelloString())
-	server1 := "Ricky"
-	// server2 := "Laszlo"
-	// server3 := "Kim"
+	server1 := "Kim"
+	// server2 := "Ricky"
+	// server3 := "Laszlo"
 	startServer(server1)
 
 	// currentTerm := 3

@@ -26,13 +26,10 @@ const (
 
 func startServer(id string) {
 	log.Print("Starting server...")
-	connected := ConnectToSql()
-	if !connected {
-		log.Print("Error connecting to SQL")
-		return
+	success := setupDB()
+	if !success {
+		log.Panic("Db not initialized properly")
 	}
-
-	InitTablesIfNeeded()
 	// statement, _ = database.Prepare("INSERT INTO people (firstname, lastname) VALUES (?, ?)")
 	// statement.Exec("Nic", "Raboy")
 	// rows, _ := database.Query("SELECT id, firstname, lastname FROM people")
@@ -44,12 +41,7 @@ func startServer(id string) {
 	// 	log.Println(strconv.Itoa(_id) + ": " + firstname + " " + lastname)
 	// }
 
-	// setServerIdFromEnv()
-	// connected := ConnectToRedis()
-	// if connected {
-	// 	log.Print("Connected to redis")
-	// }
-
+	setServerIdFromEnv()
 	handleRequests()
 	//getLogFromPersistence
 	//rebuildStateServerState
