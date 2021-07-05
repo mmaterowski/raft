@@ -12,7 +12,7 @@ var serverLog []string
 var currentTerm int
 var votedFor ksuid.KSUID
 var serverId string
-var stateMachine map[string]int
+var state map[string]int
 var serverType ServerType
 var debug = false
 
@@ -26,10 +26,11 @@ const (
 
 func startServer(id string) {
 	log.Print("Starting server...")
-	success := setupDB()
+	success := SetupDB()
 	if !success {
 		log.Panic("Db not initialized properly")
 	}
+
 	// statement, _ = database.Prepare("INSERT INTO people (firstname, lastname) VALUES (?, ?)")
 	// statement.Exec("Nic", "Raboy")
 	// rows, _ := database.Query("SELECT id, firstname, lastname FROM people")

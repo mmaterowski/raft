@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 
 	"github.com/gorilla/mux"
 	"gopkg.in/matryer/respond.v1"
@@ -14,7 +15,7 @@ type StatusResponse struct {
 	Status ServerType
 }
 type ValueResponse struct {
-	Value string
+	Value int
 }
 
 type PutResponse struct {
@@ -27,34 +28,42 @@ func getStatus(w http.ResponseWriter, r *http.Request) {
 	respond.With(w, r, http.StatusOK, data)
 }
 
-func getKey(w http.ResponseWriter, r *http.Request) {
+func getKeyValue(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
+	variables := mux.Vars(r)
+	key := variables["key"]
 
-	// variables := mux.Vars(r)
-	// key := variables["key"]
+	if key == "" {
+		message := "Argument 'key' missing"
+		log.Print(message)
+		respond.With(w, r, http.StatusInternalServerError, message)
+	}
 
-	// valueFromRedis, err := redisClient.Get(key).Result()
-	// if err != nil {
-	// 	log.Println(err)
-	// }
-
-	// data := ValueResponse{Value: valueFromRedis}
-	// respond.With(w, r, http.StatusOK, data)
+	valueFromState := state[key]
+	data := ValueResponse{Value: valueFromState}
+	respond.With(w, r, http.StatusOK, data)
 }
 
 func putKey(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
+	variables := mux.Vars(r)
+	key := variables["key"]
 
-	// variables := mux.Vars(r)
-	// key := variables["key"]
-	// value := variables["value"]
+	if key == "" {
+		message := "Argument 'key' missing"
+		log.Print(message)
+		respond.With(w, r, http.StatusInternalServerError, message)
+	}
 
-	// _, err := redisClient.Set(key, value, 0).Result()
-	// if err != nil {
-	// 	log.Println(err)
-	// }
+	value, convError := strconv.Atoi(variables["value"])
+	if convError != nil {
+		log.Print(convError)
+		respond.With(w, r, http.StatusInternalServerError, convError)
+		return
+	}
 
-	data := PutResponse{Success: true}
+	success := AppendValue(key, value, currentTerm)
+	data := PutResponse{Success: success}
 	respond.With(w, r, http.StatusOK, data)
 }
 
@@ -67,7 +76,7 @@ func handleRequests() {
 	http.Handle("/", r)
 	r.HandleFunc("/", home)
 	r.HandleFunc("/status", getStatus)
-	r.HandleFunc("/get/{key}", getKey)
+	r.HandleFunc("/get/{key}", getKeyValue)
 	r.HandleFunc("/put/{key}/{value}", putKey)
 	log.Fatal(http.ListenAndServe(":"+os.Getenv("SERVER_PORT"), nil))
 }

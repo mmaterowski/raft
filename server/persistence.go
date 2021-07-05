@@ -2,13 +2,14 @@ package main
 
 import (
 	"database/sql"
+	"fmt"
 	"log"
 	"time"
 )
 
 var db *sql.DB
 
-func setupDB() bool {
+func SetupDB() bool {
 	connected := connectToSql()
 	if !connected {
 		log.Print("Error connecting to SQL")
@@ -16,6 +17,19 @@ func setupDB() bool {
 	}
 	tablesInitialized := initTablesIfNeeded()
 	return tablesInitialized
+}
+
+func AppendValue(key string, value int, termNumber int) bool {
+	statement, _ := db.Prepare("INSERT INTO Entries (Value, Key, TermNumber) VALUES (?, ?, ?)")
+	success := executeSafely(statement, key, value, termNumber)
+	return success
+}
+
+func GetEntryAtIndex(index int) bool {
+	selectStatement := fmt.Sprintf(`SELECT * FROM Entries WHERE "%d"=1`, index)
+	statement, _ := db.Prepare(selectStatement)
+	success := executeSafely(statement)
+	return success
 }
 
 func connectToSql() bool {
