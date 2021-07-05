@@ -4,10 +4,12 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"strconv"
 	"time"
 )
 
 var db *sql.DB
+var uniqueEntryId = "ee9fdd8ac5b44fe5866e99bfc9e35932"
 
 func SetupDB() bool {
 	connected := connectToSql()
@@ -19,17 +21,45 @@ func SetupDB() bool {
 	return tablesInitialized
 }
 
-func AppendValue(key string, value int, termNumber int) bool {
+func putValue(key string, value int, termNumber int) bool {
 	statement, _ := db.Prepare("INSERT INTO Entries (Value, Key, TermNumber) VALUES (?, ?, ?)")
 	success := executeSafely(statement, key, value, termNumber)
 	return success
 }
 
 func GetEntryAtIndex(index int) bool {
-	selectStatement := fmt.Sprintf(`SELECT * FROM Entries WHERE "%d"=1`, index)
+	selectStatement := fmt.Sprintf(`SELECT * FROM Entries WHERE "Index"=%d`, index)
 	statement, _ := db.Prepare(selectStatement)
 	success := executeSafely(statement)
 	return success
+}
+
+func GetCurrentTerm() int {
+	selectStatement := fmt.Sprintf(`SELECT CurrentTerm FROM Term WHERE "UniqueEntryId"="%s"`, uniqueEntryId)
+	log.Print(selectStatement)
+	currentTermNumber := 0
+	sqlRes := ""
+	err := db.QueryRow(selectStatement).Scan(&sqlRes)
+	//TODO Check for null
+	currentTermNumber, _ = strconv.Atoi(sqlRes)
+	log.Print(currentTermNumber)
+	if err != nil {
+		log.Printf("%s", err.Error())
+		return currentTermNumber
+	}
+	return currentTermNumber
+}
+
+func GetVotedFor() string {
+	selectStatement := fmt.Sprintf(`SELECT VotedForId FROM VotedFor WHERE "UniqueEntryId"="%s"`, uniqueEntryId)
+	log.Print(selectStatement)
+	foundId := ""
+	err := db.QueryRow(selectStatement).Scan(&foundId)
+	if err != nil {
+		log.Printf("%s", err.Error())
+		return foundId
+	}
+	return foundId
 }
 
 func connectToSql() bool {
@@ -73,9 +103,9 @@ func createEntriesTableIfNotExists() bool {
 }
 
 func createTermTableIfNotExists() bool {
-	createStatement, err := db.Prepare(`CREATE TABLE "Term" (
-		"currentTerm"	INTEGER
-	, "UniqueEntryId"	INTEGER)`)
+	createStatement, err := db.Prepare(`CREATE TABLE IF NOT EXISTS "Term" (
+		"CurrentTerm"	INTEGER
+	, "UniqueEntryId"	TEXT)`)
 	if err != nil {
 		log.Print(err)
 		return false
@@ -86,8 +116,8 @@ func createTermTableIfNotExists() bool {
 }
 
 func createVotedForIfNotExists() bool {
-	createStatement, err := db.Prepare(`CREATE TABLE "VotedFor" (
-		"Id"	TEXT,
+	createStatement, err := db.Prepare(`CREATE TABLE IF NOT EXISTS "VotedFor" (
+		"VotedForId"	TEXT,
 		"UniqueEntryId"	TEXT
 	)`)
 	if err != nil {

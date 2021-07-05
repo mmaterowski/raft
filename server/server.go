@@ -5,16 +5,15 @@ import (
 	"os"
 
 	_ "github.com/mattn/go-sqlite3"
-	"github.com/segmentio/ksuid"
 )
 
 var serverLog []string
 var currentTerm int
-var votedFor ksuid.KSUID
+var votedFor string
 var serverId string
 var state map[string]int
 var serverType ServerType
-var debug = false
+var debug = true
 
 type ServerType int
 
@@ -43,8 +42,10 @@ func startServer(id string) {
 	// }
 
 	setServerIdFromEnv()
+	votedFor = GetVotedFor()
+	currentTerm = GetCurrentTerm()
 	handleRequests()
-	//getLogFromPersistence
+	// setCurrentTerm()
 	//rebuildStateServerState
 	//setElectionTimer?
 
@@ -52,6 +53,9 @@ func startServer(id string) {
 
 func setServerIdFromEnv() {
 	serverId = os.Getenv("SERVER_ID")
+	if debug {
+		serverId = "Kim"
+	}
 	if serverId == "" {
 		log.Fatal("Server id not set. Check Your environmental variable 'SERVER_ID'")
 	}
