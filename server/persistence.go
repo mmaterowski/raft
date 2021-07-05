@@ -1,59 +1,83 @@
 package main
 
 import (
-	"io/ioutil"
+	"database/sql"
 	"log"
-	"os"
-	"path/filepath"
-	"strings"
-
-	"github.com/go-redis/redis"
+	"time"
 )
 
-var redisClient redis.Client
+var db *sql.DB
 
-func ConnectToRedis() bool {
-	redisPort := os.Getenv("REDIS_PORT")
-	if redisPort == "" {
-		log.Fatal("No redis port specified. Check Your environmental variable 'REDIS_PORT'")
-
+func ConnectToSql() bool {
+	dbPath := "../data/raft-db/log.db"
+	if debug {
+		dbPath = "./log.db"
 	}
-	redisAddress := strings.ToLower(serverId) + "-redis:" + redisPort
-	log.Print("Address:" + redisAddress)
-	client := redis.NewClient(&redis.Options{
-		Addr:     redisAddress,
-		Password: "",
-		DB:       0,
-	})
-	log.Print("Trying to connect")
-	pong, err := client.Ping().Result()
-	redisClient = *client
-	return pong != "" && err == nil
+	database, err := sql.Open("sqlite3", dbPath)
+	if err != nil {
+		log.Print(err)
+	}
+	database.SetMaxOpenConns(25)
+	database.SetMaxIdleConns(25)
+	database.SetConnMaxLifetime(5 * time.Minute)
+	db = database
+	return database != nil
 }
 
-func RemoveContents(dir string) error {
-	d, err := os.Open(dir)
+func InitTablesIfNeeded() {
+	createEntriesTableIfNotExists()
+	createTermTableIfNotExists()
+	createVotedForIfNotExists()
+}
+
+func createEntriesTableIfNotExists() {
+	createStatement, err := db.Prepare(`CREATE TABLE IF NOT EXISTS "Entries" (
+		"Index"	INTEGER,
+		"Value"	INTEGER,
+		"Key"	TEXT,
+		"TermNumber"	INTEGER,
+		PRIMARY KEY("Index" AUTOINCREMENT)
+	)`)
 	if err != nil {
-		return err
+		log.Print(err)
 	}
-	defer d.Close()
-	names, err := d.Readdirnames(-1)
+	executeSafely(createStatement)
+
+}
+
+func createTermTableIfNotExists() {
+	createStatement, err := db.Prepare(`CREATE TABLE "Term" (
+		"currentTerm"	INTEGER
+	, "UniqueEntryId"	INTEGER)`)
 	if err != nil {
-		return err
+		log.Print(err)
 	}
-	for _, name := range names {
-		err = os.RemoveAll(filepath.Join(dir, name))
-		if err != nil {
-			return err
+	executeSafely(createStatement)
+
+}
+
+func createVotedForIfNotExists() {
+	createStatement, err := db.Prepare(`CREATE TABLE "VotedFor" (
+		"Id"	TEXT,
+		"UniqueEntryId"	TEXT
+	)`)
+	if err != nil {
+		log.Print(err)
+	}
+	executeSafely(createStatement)
+
+}
+
+func executeSafely(sqlStatement *sql.Stmt, args ...interface{}) {
+	if args != nil {
+		_, errWithArgs := sqlStatement.Exec(args)
+		if errWithArgs != nil {
+			log.Print(errWithArgs)
 		}
+		return
 	}
-	return nil
-}
-
-func WriteToFile(id string, filename string, payload string) {
-	data := []byte(payload)
-	strings.Title(id)
-	path := "persistence/" + strings.Title(id) + "/" + filename
-	err := ioutil.WriteFile(path, data, 0644)
-	check(err)
+	_, err := sqlStatement.Exec()
+	if err != nil {
+		log.Print(err)
+	}
 }

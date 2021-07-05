@@ -30,29 +30,29 @@ func getStatus(w http.ResponseWriter, r *http.Request) {
 func getKey(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
-	variables := mux.Vars(r)
-	key := variables["key"]
+	// variables := mux.Vars(r)
+	// key := variables["key"]
 
-	valueFromRedis, err := redisClient.Get(key).Result()
-	if err != nil {
-		log.Println(err)
-	}
+	// valueFromRedis, err := redisClient.Get(key).Result()
+	// if err != nil {
+	// 	log.Println(err)
+	// }
 
-	data := ValueResponse{Value: valueFromRedis}
-	respond.With(w, r, http.StatusOK, data)
+	// data := ValueResponse{Value: valueFromRedis}
+	// respond.With(w, r, http.StatusOK, data)
 }
 
 func putKey(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
-	variables := mux.Vars(r)
-	key := variables["key"]
-	value := variables["value"]
+	// variables := mux.Vars(r)
+	// key := variables["key"]
+	// value := variables["value"]
 
-	_, err := redisClient.Set(key, value, 0).Result()
-	if err != nil {
-		log.Println(err)
-	}
+	// _, err := redisClient.Set(key, value, 0).Result()
+	// if err != nil {
+	// 	log.Println(err)
+	// }
 
 	data := PutResponse{Success: true}
 	respond.With(w, r, http.StatusOK, data)

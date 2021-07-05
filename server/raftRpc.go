@@ -16,6 +16,5 @@ func AppendEntriesRPC(term int, leaderId string, previousLogIndex int, previousL
 	success := true
 	j, err := json.Marshal(entries)
 	fmt.Println(string(j), err)
-	WriteToFile(leaderId, "log", string(j))
 	return currentTerm, success
 }
