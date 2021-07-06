@@ -1,10 +1,21 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	pb "raft/raft_rpc"
 )
 
+type server struct {
+	pb.UnimplementedGreeterServer
+}
+
+func (s *server) SayHelloAgain(ctx context.Context, in *pb.HelloRequest) (*pb.HelloReply, error) {
+	message := "Hello again " + in.GetName()
+	return &pb.HelloReply{Message: &message}, nil
+
+}
 func RequestVoteRPC(term int, candidateId string, lastLogIndex int, lastLogTerm int) (int, bool) {
 	currentTerm := 2
 	voteGranted := true
