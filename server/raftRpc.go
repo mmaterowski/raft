@@ -11,10 +11,18 @@ func RequestVoteRPC(term int, candidateId string, lastLogIndex int, lastLogTerm 
 	return currentTerm, voteGranted
 }
 
-func AppendEntriesRPC(term int, leaderId string, previousLogIndex int, previousLogTerm int, entries map[string]int, leaderCommitIndex int) (int, bool) {
+type AppendEntriesRequest struct {
+	Term              int
+	LeaderId          string
+	PreviousLogIndex  int
+	Entries           map[string]Entry
+	LeaderCommitIndex int
+}
+
+func AppendEntriesRPC(request AppendEntriesRequest, sendTo string) (int, bool) {
 	currentTerm := 5
 	success := true
-	j, err := json.Marshal(entries)
+	j, err := json.Marshal(request.Entries)
 	fmt.Println(string(j), err)
 	return currentTerm, success
 }

@@ -21,17 +21,37 @@ func SetupDB() bool {
 	return tablesInitialized
 }
 
-func PutValue(key string, value int, termNumber int) bool {
+func PersistValue(key string, value int, termNumber int) (bool, Entry) {
+	var entry Entry
 	statement, _ := db.Prepare("INSERT INTO Entries (Value, Key, TermNumber) VALUES (?, ?, ?)")
-	success := executeSafely(statement, key, value, termNumber)
-	return success
+	success, result := executeSafely(statement, key, value, termNumber)
+
+	if !success {
+		return false, entry
+	}
+
+	if result != nil {
+		resultId, _ := result.LastInsertId()
+		previousEntryIndex = int(resultId)
+	}
+
+	entry = Entry{Index: previousEntryIndex, Value: value, Key: key, TermNumber: termNumber}
+	return success, entry
 }
 
 func GetEntryAtIndex(index int) bool {
 	selectStatement := fmt.Sprintf(`SELECT * FROM Entries WHERE "Index"=%d`, index)
 	statement, _ := db.Prepare(selectStatement)
-	success := executeSafely(statement)
+	success, _ := executeSafely(statement)
 	return success
+}
+
+func GetLastEntry() Entry {
+	selectStatement := `SELECT* FROM Entries WHERE "Index"=(SELECT MAX("Index") FROM Entries)`
+	var entry Entry
+	err := db.QueryRow(selectStatement).Scan(&entry.Index, &entry.Value, &entry.Key, &entry.TermNumber)
+	Check(err)
+	return entry
 }
 
 func GetCurrentTerm() int {
@@ -57,7 +77,7 @@ func GetCurrentTerm() int {
 func SetCurrentTerm(currentTerm int) bool {
 	insertStatement := fmt.Sprintf(`UPDATE Term SET CurrentTerm="%d" WHERE UniqueEntryId="%s"`, currentTerm, uniqueEntryId)
 	statement, _ := db.Prepare(insertStatement)
-	success := executeSafely(statement)
+	success, _ := executeSafely(statement)
 	return success
 }
 
@@ -75,7 +95,7 @@ func GetVotedFor() string {
 func SetVotedFor(votedForId string) bool {
 	insertStatement := fmt.Sprintf(`UPDATE VotedFor SET VotedForId="%s" WHERE UniqueEntryId="%s"`, votedForId, uniqueEntryId)
 	statement, _ := db.Prepare(insertStatement)
-	success := executeSafely(statement)
+	success, _ := executeSafely(statement)
 	return success
 }
 
@@ -128,7 +148,7 @@ func createEntriesTableIfNotExists() bool {
 		log.Print(err)
 		return false
 	}
-	success := executeSafely(createStatement)
+	success, _ := executeSafely(createStatement)
 	return success
 
 }
@@ -141,7 +161,7 @@ func createTermTableIfNotExists() bool {
 		log.Print(err)
 		return false
 	}
-	success := executeSafely(createStatement)
+	success, _ := executeSafely(createStatement)
 	return success
 
 }
@@ -154,24 +174,24 @@ func createVotedForIfNotExists() bool {
 	if err != nil {
 		log.Print(err)
 	}
-	success := executeSafely(createStatement)
+	success, _ := executeSafely(createStatement)
 	return success
 }
 
-func executeSafely(sqlStatement *sql.Stmt, args ...interface{}) bool {
+func executeSafely(sqlStatement *sql.Stmt, args ...interface{}) (bool, sql.Result) {
 	if args != nil {
-		_, errWithArgs := sqlStatement.Exec(args)
+		result, errWithArgs := sqlStatement.Exec(args...)
 		if errWithArgs != nil {
 			log.Print(errWithArgs)
-			return false
+			return false, result
 
 		}
-		return true
+		return true, result
 	}
-	_, err := sqlStatement.Exec()
+	result, err := sqlStatement.Exec()
 	if err != nil {
 		log.Print(err)
-		return false
+		return false, result
 	}
-	return true
+	return true, result
 }

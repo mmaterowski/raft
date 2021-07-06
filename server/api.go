@@ -1,15 +1,22 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"strconv"
+	"sync"
 
 	"github.com/gorilla/mux"
 	"gopkg.in/matryer/respond.v1"
 )
+
+var laszloAddress = "laszlo:6971"
+var rickyAddress = "ricky:6970"
+var kimAddress = "ricky:6969"
+var others []string
 
 type StatusResponse struct {
 	Status ServerType
@@ -22,13 +29,13 @@ type PutResponse struct {
 	Success bool
 }
 
-func getStatus(w http.ResponseWriter, r *http.Request) {
+func GetStatus(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	data := StatusResponse{Status: serverType}
 	respond.With(w, r, http.StatusOK, data)
 }
 
-func getKeyValue(w http.ResponseWriter, r *http.Request) {
+func GetKeyValue(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	variables := mux.Vars(r)
 	key := variables["key"]
@@ -39,32 +46,68 @@ func getKeyValue(w http.ResponseWriter, r *http.Request) {
 		respond.With(w, r, http.StatusInternalServerError, message)
 	}
 
-	valueFromState := state[key]
-	data := ValueResponse{Value: valueFromState}
+	entry := state[key]
+	data := ValueResponse{Value: entry.Value}
 	respond.With(w, r, http.StatusOK, data)
 }
 
-func putKey(w http.ResponseWriter, r *http.Request) {
+func AcceptLogEntry(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
+	key, value, err := getKeyAndValue(r)
+	Check(err)
+	success, entry := PersistValue(key, value, currentTerm)
+	entries := make(map[string]Entry)
+	entries[entry.Key] = entry
+	makeSureLastEntryDataIsAvailable()
+
+	request := AppendEntriesRequest{
+		Term: currentTerm, LeaderId: serverId, PreviousLogIndex: previousEntryIndex, Entries: entries, LeaderCommitIndex: commitIndex,
+	}
+	var wg sync.WaitGroup
+
+	wg.Add((len(others) / 2) + 1)
+	for _, otherServer := range others {
+		go func(request AppendEntriesRequest, otherServer string) {
+			term, dataMatch := AppendEntriesRPC(request, otherServer)
+			log.Print(term, dataMatch)
+			defer wg.Done()
+		}(request, otherServer)
+	}
+	wg.Wait()
+	//majority accepted, can go on
+
+	state[entry.Key] = entry
+	commitIndex = entry.Index
+
+	data := PutResponse{Success: success}
+	respond.With(w, r, http.StatusOK, data)
+}
+
+func makeSureLastEntryDataIsAvailable() {
+	if previousEntryIndex < 0 || previousEntryTerm < 0 {
+		entry := GetLastEntry()
+		previousEntryIndex = entry.Index
+		previousEntryTerm = entry.TermNumber
+	}
+}
+
+func getKeyAndValue(r *http.Request) (string, int, error) {
+	var key string
+	var value int
+	var err error
+
 	variables := mux.Vars(r)
-	key := variables["key"]
+	key = variables["key"]
 
 	if key == "" {
-		message := "Argument 'key' missing"
-		log.Print(message)
-		respond.With(w, r, http.StatusInternalServerError, message)
+		return key, value, errors.New("argument 'key' missing")
 	}
 
 	value, convError := strconv.Atoi(variables["value"])
 	if convError != nil {
-		log.Print(convError)
-		respond.With(w, r, http.StatusInternalServerError, convError)
-		return
+		return key, value, err
 	}
-
-	success := PutValue(key, value, currentTerm)
-	data := PutResponse{Success: success}
-	respond.With(w, r, http.StatusOK, data)
+	return key, value, err
 }
 
 func home(w http.ResponseWriter, r *http.Request) {
@@ -75,8 +118,8 @@ func handleRequests() {
 	r := mux.NewRouter()
 	http.Handle("/", r)
 	r.HandleFunc("/", home)
-	r.HandleFunc("/status", getStatus)
-	r.HandleFunc("/get/{key}", getKeyValue)
-	r.HandleFunc("/put/{key}/{value}", putKey)
+	r.HandleFunc("/status", GetStatus)
+	r.HandleFunc("/get/{key}", GetKeyValue)
+	r.HandleFunc("/put/{key}/{value}", AcceptLogEntry)
 	log.Fatal(http.ListenAndServe(":"+os.Getenv("SERVER_PORT"), nil))
 }
