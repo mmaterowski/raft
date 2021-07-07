@@ -4,18 +4,34 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	pb "raft/raft_rpc"
+	"sync"
+
+	"google.golang.org/grpc"
 )
 
+func handleRPC() {
+	lis, err := net.Listen("tcp", fmt.Sprintf("localhost:%d", 6960))
+	Check(err)
+	var opts []grpc.ServerOption
+	grpcServer := grpc.NewServer(opts...)
+	pb.RegisterRaftRpcServer(grpcServer, pb.UnimplementedRaftRpcServer{})
+	grpcServer.Serve(lis)
+}
+
 type server struct {
-	pb.UnimplementedGreeterServer
+	pb.UnimplementedRaftRpcServer
+	mu sync.Mutex
 }
 
-func (s *server) SayHelloAgain(ctx context.Context, in *pb.HelloRequest) (*pb.HelloReply, error) {
-	message := "Hello again " + in.GetName()
-	return &pb.HelloReply{Message: &message}, nil
-
+func (s *server) AppendEntries(ctx context.Context, in *pb.AppendEntriesRequest) (*pb.AppendEntriesReply, error) {
+	return &pb.AppendEntriesReply{Term: 3, Success: true}, nil
 }
+
+type RequestVoteRequest struct {
+}
+
 func RequestVoteRPC(term int, candidateId string, lastLogIndex int, lastLogTerm int) (int, bool) {
 	currentTerm := 2
 	voteGranted := true

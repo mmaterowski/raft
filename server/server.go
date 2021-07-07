@@ -41,7 +41,13 @@ func startServer(id string) {
 	if !stateRebuilt {
 		log.Panic("Couldn't rebuild state")
 	}
-	handleRequests()
+
+	go func() {
+		handleRPC()
+	}()
+	go func() {
+		handleRequests()
+	}()
 
 	//setElectionTimer?
 
