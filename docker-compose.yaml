@@ -4,8 +4,7 @@ services:
         build: ./server
         ports:
           - "6969:6969"
-        expose: 
-          - "6960"
+          - "6960:6960"
         environment:
             - SERVER_ID=Kim
             - SERVER_PORT=6969

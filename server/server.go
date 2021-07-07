@@ -1,10 +1,17 @@
 package main
 
 import (
+	"context"
+	"fmt"
 	"log"
+	"net"
 	"os"
+	"time"
+
+	pb "raft/raft_rpc"
 
 	_ "github.com/mattn/go-sqlite3"
+	"google.golang.org/grpc"
 )
 
 var serverLog []string
@@ -13,7 +20,7 @@ var votedFor string
 var serverId string
 var state map[string]Entry = make(map[string]Entry)
 var serverType ServerType
-var debug = true
+var debug = false
 var previousEntryIndex int = -1
 var previousEntryTerm int = -1
 var commitIndex int = -1
@@ -36,21 +43,55 @@ func startServer(id string) {
 	identifyServer()
 	votedFor = GetVotedFor()
 	currentTerm = GetCurrentTerm()
-	stateRebuilt := RebuildStateFromLog()
-	PersistValue("d", 23, 20)
-	if !stateRebuilt {
-		log.Panic("Couldn't rebuild state")
-	}
+	// stateRebuilt := RebuildStateFromLog()
+	// PersistValue("d", 23, 20)
+	// if !stateRebuilt {
+	// 	log.Panic("Couldn't rebuild state")
+	// }
 
 	go func() {
-		handleRPC()
+		if serverId == "Kim" {
+			handleRPC()
+		}
 	}()
 	go func() {
-		handleRequests()
+		time.Sleep(5 * time.Second)
+		if serverId == "Kim" {
+			serverPort := "kim:6960"
+			conn, err := grpc.Dial(serverPort, grpc.WithInsecure())
+			Check(err)
+			client := pb.NewRaftRpcClient(conn)
+
+			feature, err := client.AppendEntries(context.Background(), &pb.AppendEntriesRequest{Term: 3}, grpc.EmptyCallOption{})
+			Check(err)
+			log.Println(feature)
+			defer conn.Close()
+		}
+
 	}()
 
+	handleRequests()
 	//setElectionTimer?
 
+}
+
+func handleRPC() {
+	port := 6960
+	lis, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%d", port))
+	Check(err)
+	var opts []grpc.ServerOption
+	grpcServer := grpc.NewServer(opts...)
+	pb.RegisterRaftRpcServer(grpcServer, &server{})
+	log.Printf("RPC listening on port: %d", port)
+	grpcServer.Serve(lis)
+}
+
+type server struct {
+	pb.UnimplementedRaftRpcServer
+}
+
+func (s *server) AppendEntries(ctx context.Context, in *pb.AppendEntriesRequest) (*pb.AppendEntriesReply, error) {
+	return &pb.AppendEntriesReply{Term: 3, Success: true}, nil
 }
 
 func identifyServer() {

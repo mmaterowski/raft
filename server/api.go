@@ -60,19 +60,19 @@ func AcceptLogEntry(w http.ResponseWriter, r *http.Request) {
 	entries[entry.Key] = entry
 	makeSureLastEntryDataIsAvailable()
 
-	request := AppendEntriesRequest{
-		Term: currentTerm, LeaderId: serverId, PreviousLogIndex: previousEntryIndex, Entries: entries, LeaderCommitIndex: commitIndex,
-	}
+	// request := AppendEntriesRequest{
+	// 	Term: currentTerm, LeaderId: serverId, PreviousLogIndex: previousEntryIndex, Entries: entries, LeaderCommitIndex: commitIndex,
+	// }
 	var wg sync.WaitGroup
 
 	wg.Add((len(others) / 2) + 1)
-	for _, otherServer := range others {
-		go func(request AppendEntriesRequest, otherServer string) {
-			term, dataMatch := AppendEntriesRPC(request, otherServer)
-			log.Print(term, dataMatch)
-			defer wg.Done()
-		}(request, otherServer)
-	}
+	// for _, otherServer := range others {
+	// go func(request AppendEntriesRequest, otherServer string) {
+	// 	term, dataMatch := AppendEntriesRPC(request, otherServer)
+	// 	log.Print(term, dataMatch)
+	// 	defer wg.Done()
+	// }(request, otherServer)
+	// }
 	wg.Wait()
 	//majority accepted, can go on
 
@@ -121,5 +121,7 @@ func handleRequests() {
 	r.HandleFunc("/status", GetStatus)
 	r.HandleFunc("/get/{key}", GetKeyValue)
 	r.HandleFunc("/put/{key}/{value}", AcceptLogEntry)
-	log.Fatal(http.ListenAndServe(":"+os.Getenv("SERVER_PORT"), nil))
+	port := os.Getenv("SERVER_PORT")
+	log.Printf("API listens on %s", port)
+	log.Fatal(http.ListenAndServe(":"+port, nil))
 }
