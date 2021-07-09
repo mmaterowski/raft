@@ -18,9 +18,7 @@ const _ = grpc.SupportPackageIsVersion7
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type RaftRpcClient interface {
-	// Sends a greeting
 	AppendEntries(ctx context.Context, in *AppendEntriesRequest, opts ...grpc.CallOption) (*AppendEntriesReply, error)
-	// Sends another greeting
 	RequestVote(ctx context.Context, in *RequestVoteRequest, opts ...grpc.CallOption) (*RequestVoteReply, error)
 }
 
@@ -54,9 +52,7 @@ func (c *raftRpcClient) RequestVote(ctx context.Context, in *RequestVoteRequest,
 // All implementations must embed UnimplementedRaftRpcServer
 // for forward compatibility
 type RaftRpcServer interface {
-	// Sends a greeting
 	AppendEntries(context.Context, *AppendEntriesRequest) (*AppendEntriesReply, error)
-	// Sends another greeting
 	RequestVote(context.Context, *RequestVoteRequest) (*RequestVoteReply, error)
 	mustEmbedUnimplementedRaftRpcServer()
 }

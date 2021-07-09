@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -37,6 +38,35 @@ func PersistValue(key string, value int, termNumber int) (bool, Entry) {
 
 	entry = Entry{Index: previousEntryIndex, Value: value, Key: key, TermNumber: termNumber}
 	return success, entry
+}
+
+func PersistValues(entries []Entry) (bool, Entry) {
+	var lastEntry Entry = entries[len(entries)]
+
+	if len(entries) == 0 {
+		return true, lastEntry
+	}
+
+	insert := "INSERT INTO Entries (Value, Key, TermNumber) VALUES "
+	for _, entry := range entries {
+		insert += fmt.Sprintf(`(%d,%s,%d),`, entry.Value, entry.Key, entry.TermNumber)
+	}
+	insert = strings.TrimSuffix(insert, "")
+
+	statement, _ := db.Prepare(insert)
+	success, result := executeSafely(statement)
+
+	if !success {
+		return false, lastEntry
+	}
+
+	if result != nil {
+		resultId, _ := result.LastInsertId()
+		previousEntryIndex = int(resultId)
+	}
+
+	lastEntry = Entry{Index: previousEntryIndex, Value: lastEntry.Value, Key: lastEntry.Key, TermNumber: lastEntry.TermNumber}
+	return success, lastEntry
 }
 
 func GetEntryAtIndex(index int) bool {

@@ -86,14 +86,6 @@ func handleRPC() {
 	grpcServer.Serve(lis)
 }
 
-type server struct {
-	pb.UnimplementedRaftRpcServer
-}
-
-func (s *server) AppendEntries(ctx context.Context, in *pb.AppendEntriesRequest) (*pb.AppendEntriesReply, error) {
-	return &pb.AppendEntriesReply{Term: 3, Success: true}, nil
-}
-
 func identifyServer() {
 	serverId = os.Getenv("SERVER_ID")
 	if debug {

@@ -21,7 +21,7 @@ message AppendEntriesRequest  {
   int32 Term = 1;
   string 	LeaderId = 2;
   int32	PreviousLogIndex = 3;
-  map<string, Entry> Entries = 4;
+  repeated Entry Entries = 4;
   int32 LeaderCommitIndex = 5;
 }
 
