@@ -25,7 +25,7 @@ func SetupDB() bool {
 func PersistValue(key string, value int, termNumber int) (bool, Entry) {
 	var entry Entry
 	statement, _ := db.Prepare("INSERT INTO Entries (Value, Key, TermNumber) VALUES (?, ?, ?)")
-	success, result := executeSafely(statement, key, value, termNumber)
+	success, result := executeSafely(statement, value, key, termNumber)
 
 	if !success {
 		return false, entry
@@ -41,19 +41,18 @@ func PersistValue(key string, value int, termNumber int) (bool, Entry) {
 }
 
 func PersistValues(entries []Entry) (bool, Entry) {
-	var lastEntry Entry = entries[len(entries)]
-
 	if len(entries) == 0 {
-		return true, lastEntry
+		return true, Entry{}
 	}
 
+	var lastEntry Entry = entries[len(entries)-1]
 	insert := "INSERT INTO Entries (Value, Key, TermNumber) VALUES "
 	for _, entry := range entries {
-		insert += fmt.Sprintf(`(%d,%s,%d),`, entry.Value, entry.Key, entry.TermNumber)
+		insert += fmt.Sprintf(`(%d,"%s",%d),`, entry.Value, entry.Key, entry.TermNumber)
 	}
-	insert = strings.TrimSuffix(insert, "")
-
+	insert = strings.TrimSuffix(insert, ",")
 	statement, _ := db.Prepare(insert)
+
 	success, result := executeSafely(statement)
 
 	if !success {

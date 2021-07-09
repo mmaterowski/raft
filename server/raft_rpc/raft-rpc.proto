@@ -11,7 +11,7 @@ service RaftRpc {
 
 message Entry {
   int32 Index = 1;
-  int32 Valuy= 2;
+  int32 Value= 2;
   string Key = 3;
   int32 TermNumber=4;
 }

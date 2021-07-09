@@ -8,6 +8,7 @@ import (
 	"os"
 	"time"
 
+	"raft/raft_rpc"
 	pb "raft/raft_rpc"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -43,32 +44,40 @@ func startServer(id string) {
 	identifyServer()
 	votedFor = GetVotedFor()
 	currentTerm = GetCurrentTerm()
-	// stateRebuilt := RebuildStateFromLog()
-	// PersistValue("d", 23, 20)
-	// if !stateRebuilt {
-	// 	log.Panic("Couldn't rebuild state")
-	// }
+	stateRebuilt := RebuildStateFromLog()
+	PersistValue("d", 23, 20)
+	if !stateRebuilt {
+		log.Panic("Couldn't rebuild state")
+	}
 
-	go func() {
-		if serverId == "Kim" {
-			handleRPC()
-		}
-	}()
-	go func() {
-		time.Sleep(5 * time.Second)
-		if serverId == "Kim" {
-			serverPort := "kim:6960"
-			conn, err := grpc.Dial(serverPort, grpc.WithInsecure())
-			Check(err)
-			client := pb.NewRaftRpcClient(conn)
+	if !debug {
+		go func() {
+			if serverId == "Kim" {
+				handleRPC()
+			}
+		}()
+		go func() {
+			time.Sleep(5 * time.Second)
+			if serverId == "Kim" {
+				serverPort := "kim:6960"
+				conn, err := grpc.Dial(serverPort, grpc.WithInsecure())
+				Check(err)
+				client := pb.NewRaftRpcClient(conn)
+				entries := []*raft_rpc.Entry{}
+				entries = append(entries, &raft_rpc.Entry{
+					Index:      2,
+					Value:      34,
+					Key:        "jebanko",
+					TermNumber: 3,
+				})
+				feature, err := client.AppendEntries(context.Background(), &pb.AppendEntriesRequest{Term: 3, Entries: entries}, grpc.EmptyCallOption{})
+				Check(err)
+				log.Println(feature)
+				defer conn.Close()
+			}
 
-			feature, err := client.AppendEntries(context.Background(), &pb.AppendEntriesRequest{Term: 3}, grpc.EmptyCallOption{})
-			Check(err)
-			log.Println(feature)
-			defer conn.Close()
-		}
-
-	}()
+		}()
+	}
 
 	handleRequests()
 	//setElectionTimer?

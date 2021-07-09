@@ -27,6 +27,6 @@ func mapRaftEntriesToEntries(rpcEntries []*pb.Entry) []Entry {
 	return entries
 }
 func getEntryFromRaftEntry(rpcEntry *pb.Entry) Entry {
-	entry := Entry{Key: rpcEntry.Key, Index: int(rpcEntry.Index), Value: int(rpcEntry.Valuy), TermNumber: int(rpcEntry.TermNumber)}
+	entry := Entry{Key: rpcEntry.Key, Index: int(rpcEntry.Index), Value: int(rpcEntry.Value), TermNumber: int(rpcEntry.TermNumber)}
 	return entry
 }
