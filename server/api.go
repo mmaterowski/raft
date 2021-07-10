@@ -1,21 +1,25 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
+	"raft/raft_rpc"
+	pb "raft/raft_rpc"
 	"strconv"
 	"sync"
 
 	"github.com/gorilla/mux"
+	"google.golang.org/grpc"
 	"gopkg.in/matryer/respond.v1"
 )
 
-var laszloAddress = "laszlo:6971"
-var rickyAddress = "ricky:6970"
-var kimAddress = "ricky:6969"
+var laszloId = "Laszlo"
+var rickyId = "Ricky"
+var kimId = "Kim"
 var others []string
 
 type StatusResponse struct {
@@ -56,23 +60,21 @@ func AcceptLogEntry(w http.ResponseWriter, r *http.Request) {
 	key, value, err := getKeyAndValue(r)
 	Check(err)
 	success, entry := PersistValue(key, value, currentTerm)
-	entries := make(map[string]Entry)
-	entries[entry.Key] = entry
+	entries := []*raft_rpc.Entry{}
+	entries = append(entries, &pb.Entry{Index: int32(entry.Index), Value: int32(entry.Value), Key: entry.Key, TermNumber: int32(entry.TermNumber)})
 	makeSureLastEntryDataIsAvailable()
-
-	// request := AppendEntriesRequest{
-	// 	Term: currentTerm, LeaderId: serverId, PreviousLogIndex: previousEntryIndex, Entries: entries, LeaderCommitIndex: commitIndex,
-	// }
 	var wg sync.WaitGroup
 
 	wg.Add((len(others) / 2) + 1)
-	// for _, otherServer := range others {
-	// go func(request AppendEntriesRequest, otherServer string) {
-	// 	term, dataMatch := AppendEntriesRPC(request, otherServer)
-	// 	log.Print(term, dataMatch)
-	// 	defer wg.Done()
-	// }(request, otherServer)
-	// }
+	for _, otherServer := range others {
+		go func(leaderId string, previousEntryIndex int, commitIndex int, otherServer string) {
+			appendEntriesRequest := pb.AppendEntriesRequest{Term: int32(currentTerm), LeaderId: serverId, PreviousLogIndex: int32(previousEntryIndex), Entries: entries, LeaderCommitIndex: int32(commitIndex)}
+			feature, err := GetClientFor(otherServer).AppendEntries(context.Background(), &appendEntriesRequest, grpc.EmptyCallOption{})
+			Check(err)
+			log.Print(feature.String())
+			defer wg.Done()
+		}(serverId, previousEntryIndex, commitIndex, otherServer)
+	}
 	wg.Wait()
 	//majority accepted, can go on
 

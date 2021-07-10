@@ -1,14 +1,11 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"log"
 	"net"
 	"os"
-	"time"
 
-	"raft/raft_rpc"
 	pb "raft/raft_rpc"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -50,41 +47,21 @@ func startServer(id string) {
 		log.Panic("Couldn't rebuild state")
 	}
 
-	if !debug {
-		go func() {
-			if serverId == "Kim" {
-				handleRPC()
-			}
-		}()
-		go func() {
-			time.Sleep(5 * time.Second)
-			if serverId == "Kim" {
-				serverPort := "kim:6960"
-				conn, err := grpc.Dial(serverPort, grpc.WithInsecure())
-				Check(err)
-				client := pb.NewRaftRpcClient(conn)
-				entries := []*raft_rpc.Entry{}
-				entries = append(entries, &raft_rpc.Entry{
-					Index:      2,
-					Value:      34,
-					Key:        "jebanko",
-					TermNumber: 3,
-				})
-				feature, err := client.AppendEntries(context.Background(), &pb.AppendEntriesRequest{Term: 3, Entries: entries}, grpc.EmptyCallOption{})
-				Check(err)
-				log.Println(feature)
-				defer conn.Close()
-			}
+	go func() {
+		err := handleRPC()
+		Check(err)
+	}()
 
-		}()
-	}
+	go func() {
+		SetupRpcClient()
+	}()
 
 	handleRequests()
 	//setElectionTimer?
 
 }
 
-func handleRPC() {
+func handleRPC() error {
 	port := 6960
 	lis, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%d", port))
 	Check(err)
@@ -92,14 +69,14 @@ func handleRPC() {
 	grpcServer := grpc.NewServer(opts...)
 	pb.RegisterRaftRpcServer(grpcServer, &server{})
 	log.Printf("RPC listening on port: %d", port)
-	grpcServer.Serve(lis)
+	return grpcServer.Serve(lis)
 }
 
 func identifyServer() {
 	serverId = os.Getenv("SERVER_ID")
 	if debug {
 		serverId = "Kim"
-		others = append(others, laszloAddress, rickyAddress)
+		others = append(others, laszloId, rickyId)
 	}
 	if serverId == "" {
 		log.Fatal("Server id not set. Check Your environmental variable 'SERVER_ID'")
@@ -107,11 +84,11 @@ func identifyServer() {
 
 	switch serverId {
 	case "Kim":
-		others = append(others, laszloAddress, rickyAddress)
+		others = append(others, laszloId, rickyId)
 	case "Ricky":
-		others = append(others, laszloAddress, kimAddress)
+		others = append(others, laszloId, kimId)
 	case "Laszlo":
-		others = append(others, rickyAddress, kimAddress)
+		others = append(others, rickyId, kimId)
 	default:
 		log.Panic("Couldn't identify server")
 	}
