@@ -6,23 +6,25 @@ import (
 	"google.golang.org/grpc"
 )
 
-var kimRpcClient pb.RaftRpcClient
-var rickyRpcClient pb.RaftRpcClient
-var laszloRpcClient pb.RaftRpcClient
-var rpcClientSetUpSuccessfull bool = false
+type rpcClient struct {
+	kimClient         pb.RaftRpcClient
+	rickyClient       pb.RaftRpcClient
+	laszloClient      pb.RaftRpcClient
+	setUpSuccessfully bool
+}
 
-func SetupRpcClient() {
+func (r *rpcClient) SetupRpcClient() {
 	if serverId == "Kim" {
 		rickyServerPort := "ricky:6960"
 		rickyRpcClientConnection, err := grpc.Dial(rickyServerPort, grpc.WithInsecure())
 		Check(err)
-		rickyRpcClient = pb.NewRaftRpcClient(rickyRpcClientConnection)
+		r.rickyClient = pb.NewRaftRpcClient(rickyRpcClientConnection)
 
 		laszloServerPort := "laszlo:6960"
 		laszloRpcClientConnection, err := grpc.Dial(laszloServerPort, grpc.WithInsecure())
 		Check(err)
-		laszloRpcClient = pb.NewRaftRpcClient(laszloRpcClientConnection)
-		rpcClientSetUpSuccessfull = true
+		r.laszloClient = pb.NewRaftRpcClient(laszloRpcClientConnection)
+		r.setUpSuccessfully = true
 
 	}
 
@@ -30,13 +32,13 @@ func SetupRpcClient() {
 		kimServerPort := "kim:6960"
 		kimRpcClientConnection, err := grpc.Dial(kimServerPort, grpc.WithInsecure())
 		Check(err)
-		kimRpcClient = pb.NewRaftRpcClient(kimRpcClientConnection)
+		r.kimClient = pb.NewRaftRpcClient(kimRpcClientConnection)
 
 		laszloServerPort := "laszlo:6960"
 		laszloRpcClientConnection, err := grpc.Dial(laszloServerPort, grpc.WithInsecure())
 		Check(err)
-		laszloRpcClient = pb.NewRaftRpcClient(laszloRpcClientConnection)
-		rpcClientSetUpSuccessfull = true
+		r.laszloClient = pb.NewRaftRpcClient(laszloRpcClientConnection)
+		r.setUpSuccessfully = true
 
 	}
 
@@ -44,30 +46,30 @@ func SetupRpcClient() {
 		kimServerPort := "kim:6960"
 		kimRpcClientConnection, err := grpc.Dial(kimServerPort, grpc.WithInsecure())
 		Check(err)
-		kimRpcClient = pb.NewRaftRpcClient(kimRpcClientConnection)
+		r.kimClient = pb.NewRaftRpcClient(kimRpcClientConnection)
 
 		rickyServerPort := "ricky:6960"
 		rickyRpcClientConnection, err := grpc.Dial(rickyServerPort, grpc.WithInsecure())
 		Check(err)
-		rickyRpcClient = pb.NewRaftRpcClient(rickyRpcClientConnection)
-		rpcClientSetUpSuccessfull = true
+		r.rickyClient = pb.NewRaftRpcClient(rickyRpcClientConnection)
+		r.setUpSuccessfully = true
 
 	}
 
 }
 
-func GetClientFor(serverId string) pb.RaftRpcClient {
-	if !rpcClientSetUpSuccessfull {
+func (r rpcClient) GetClientFor(serverId string) pb.RaftRpcClient {
+	if !r.setUpSuccessfully {
 		panic("Clients not set up!")
 	}
 	if serverId == "Kim" {
-		return kimRpcClient
+		return r.kimClient
 	}
 	if serverId == "Ricky" {
-		return rickyRpcClient
+		return r.rickyClient
 	}
 	if serverId == "Laszlo" {
-		return laszloRpcClient
+		return r.laszloClient
 	}
 	panic("Wrong server name")
 }

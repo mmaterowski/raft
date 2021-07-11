@@ -69,7 +69,7 @@ func AcceptLogEntry(w http.ResponseWriter, r *http.Request) {
 	for _, otherServer := range others {
 		go func(leaderId string, previousEntryIndex int, commitIndex int, otherServer string) {
 			appendEntriesRequest := pb.AppendEntriesRequest{Term: int32(currentTerm), LeaderId: serverId, PreviousLogIndex: int32(previousEntryIndex), Entries: entries, LeaderCommitIndex: int32(commitIndex)}
-			feature, err := GetClientFor(otherServer).AppendEntries(context.Background(), &appendEntriesRequest, grpc.EmptyCallOption{})
+			feature, err := server.rpcClient.GetClientFor(otherServer).AppendEntries(context.Background(), &appendEntriesRequest, grpc.EmptyCallOption{})
 			Check(err)
 			log.Print(feature.String())
 			defer wg.Done()

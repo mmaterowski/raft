@@ -1,4 +1,3 @@
-1. AppendEntries in Paralell to other machines depending on current leader
 1.5 Logic for appneding entry success/fail
 2. Optimize docker build ~50sec now
 3. Learn about &,*,slices mappings more go concepts

@@ -6,13 +6,15 @@ import (
 
 var done bool
 var mu sync.Mutex
+var server raftServer
 
 func main() {
 	PrintAsciiHelloString()
 	server1 := "Kim"
 	// server2 := "Ricky"
 	// server3 := "Laszlo"
-	startServer(server1)
+	server = raftServer{}
+	server.startServer(server1)
 
 	// currentTerm := 3
 	// lastLogIndex := 0

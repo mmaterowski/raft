@@ -5,11 +5,11 @@ import (
 	pb "raft/raft_rpc"
 )
 
-type server struct {
+type rpcServer struct {
 	pb.UnimplementedRaftRpcServer
 }
 
-func (s *server) AppendEntries(ctx context.Context, in *pb.AppendEntriesRequest) (*pb.AppendEntriesReply, error) {
+func (s *rpcServer) AppendEntries(ctx context.Context, in *pb.AppendEntriesRequest) (*pb.AppendEntriesReply, error) {
 	entries := mapRaftEntriesToEntries(in.Entries)
 	success, lastAppended := PersistValues(entries)
 

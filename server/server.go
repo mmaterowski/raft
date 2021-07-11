@@ -18,10 +18,14 @@ var votedFor string
 var serverId string
 var state map[string]Entry = make(map[string]Entry)
 var serverType ServerType
-var debug = false
+var debug = true
 var previousEntryIndex int = -1
 var previousEntryTerm int = -1
 var commitIndex int = -1
+
+type raftServer struct {
+	rpcClient
+}
 
 type ServerType int
 
@@ -31,7 +35,7 @@ const (
 	Candidate
 )
 
-func startServer(id string) {
+func (s raftServer) startServer(id string) {
 	log.Print("Starting server...")
 	success := SetupDB()
 	if !success {
@@ -53,7 +57,7 @@ func startServer(id string) {
 	}()
 
 	go func() {
-		SetupRpcClient()
+		s.rpcClient.SetupRpcClient()
 	}()
 
 	handleRequests()
@@ -67,7 +71,7 @@ func handleRPC() error {
 	Check(err)
 	var opts []grpc.ServerOption
 	grpcServer := grpc.NewServer(opts...)
-	pb.RegisterRaftRpcServer(grpcServer, &server{})
+	pb.RegisterRaftRpcServer(grpcServer, &rpcServer{})
 	log.Printf("RPC listening on port: %d", port)
 	return grpcServer.Serve(lis)
 }
