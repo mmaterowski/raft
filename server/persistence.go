@@ -22,10 +22,10 @@ func PersistValue(key string, value int, termNumber int) (bool, Entry) {
 
 	if result != nil {
 		resultId, _ := result.LastInsertId()
-		previousEntryIndex = int(resultId)
+		server.previousEntryIndex = int(resultId)
 	}
 
-	entry = Entry{Index: previousEntryIndex, Value: value, Key: key, TermNumber: termNumber}
+	entry = Entry{Index: server.previousEntryIndex, Value: value, Key: key, TermNumber: termNumber}
 	return success, entry
 }
 
@@ -50,10 +50,10 @@ func PersistValues(entries []Entry) (bool, Entry) {
 
 	if result != nil {
 		resultId, _ := result.LastInsertId()
-		previousEntryIndex = int(resultId)
+		server.previousEntryIndex = int(resultId)
 	}
 
-	lastEntry = Entry{Index: previousEntryIndex, Value: lastEntry.Value, Key: lastEntry.Key, TermNumber: lastEntry.TermNumber}
+	lastEntry = Entry{Index: server.previousEntryIndex, Value: lastEntry.Value, Key: lastEntry.Key, TermNumber: lastEntry.TermNumber}
 	return success, lastEntry
 }
 

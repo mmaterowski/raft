@@ -14,7 +14,7 @@ type rpcClient struct {
 }
 
 func (r *rpcClient) SetupRpcClient() {
-	if serverId == "Kim" {
+	if server.id == "Kim" {
 		rickyServerPort := "ricky:6960"
 		rickyRpcClientConnection, err := grpc.Dial(rickyServerPort, grpc.WithInsecure())
 		Check(err)
@@ -28,7 +28,7 @@ func (r *rpcClient) SetupRpcClient() {
 
 	}
 
-	if serverId == "Ricky" {
+	if server.id == "Ricky" {
 		kimServerPort := "kim:6960"
 		kimRpcClientConnection, err := grpc.Dial(kimServerPort, grpc.WithInsecure())
 		Check(err)
@@ -42,7 +42,7 @@ func (r *rpcClient) SetupRpcClient() {
 
 	}
 
-	if serverId == "Laszlo" {
+	if server.id == "Laszlo" {
 		kimServerPort := "kim:6960"
 		kimRpcClientConnection, err := grpc.Dial(kimServerPort, grpc.WithInsecure())
 		Check(err)

@@ -12,30 +12,33 @@ import (
 	"google.golang.org/grpc"
 )
 
-var serverLog []string
-var currentTerm int
-var votedFor string
-var serverId string
-var state map[string]Entry = make(map[string]Entry)
-var serverType ServerType
 var debug = true
-var previousEntryIndex int = -1
-var previousEntryTerm int = -1
-var commitIndex int = -1
+
+type serverType int
 
 type raftServer struct {
 	rpcClient
+	serverType
+	state              map[string]Entry
+	currentTerm        int
+	previousEntryIndex int
+	previousEntryTerm  int
+	commitIndex        int
+	id                 string
+	votedFor           string
 }
 
-type ServerType int
-
 const (
-	Follower ServerType = iota + 1
+	Follower serverType = iota + 1
 	Leader
 	Candidate
 )
 
 func (s raftServer) startServer(id string) {
+	s.state = make(map[string]Entry)
+	s.previousEntryIndex = -1
+	s.previousEntryTerm = -1
+	s.commitIndex = -1
 	log.Print("Starting server...")
 	success := SetupDB()
 	if !success {
@@ -43,8 +46,8 @@ func (s raftServer) startServer(id string) {
 	}
 
 	identifyServer()
-	votedFor = GetVotedFor()
-	currentTerm = GetCurrentTerm()
+	server.votedFor = GetVotedFor()
+	server.currentTerm = GetCurrentTerm()
 	stateRebuilt := RebuildStateFromLog()
 	PersistValue("d", 23, 20)
 	if !stateRebuilt {
@@ -77,16 +80,16 @@ func handleRPC() error {
 }
 
 func identifyServer() {
-	serverId = os.Getenv("SERVER_ID")
+	server.id = os.Getenv("SERVER_ID")
 	if debug {
-		serverId = "Kim"
+		server.id = "Kim"
 		others = append(others, laszloId, rickyId)
 	}
-	if serverId == "" {
+	if server.id == "" {
 		log.Fatal("Server id not set. Check Your environmental variable 'SERVER_ID'")
 	}
 
-	switch serverId {
+	switch server.id {
 	case "Kim":
 		others = append(others, laszloId, rickyId)
 	case "Ricky":

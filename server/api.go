@@ -23,7 +23,7 @@ var kimId = "Kim"
 var others []string
 
 type StatusResponse struct {
-	Status ServerType
+	Status serverType
 }
 type ValueResponse struct {
 	Value int
@@ -35,7 +35,7 @@ type PutResponse struct {
 
 func GetStatus(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	data := StatusResponse{Status: serverType}
+	data := StatusResponse{Status: server.serverType}
 	respond.With(w, r, http.StatusOK, data)
 }
 
@@ -50,7 +50,7 @@ func GetKeyValue(w http.ResponseWriter, r *http.Request) {
 		respond.With(w, r, http.StatusInternalServerError, message)
 	}
 
-	entry := state[key]
+	entry := server.state[key]
 	data := ValueResponse{Value: entry.Value}
 	respond.With(w, r, http.StatusOK, data)
 }
@@ -59,7 +59,7 @@ func AcceptLogEntry(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	key, value, err := getKeyAndValue(r)
 	Check(err)
-	success, entry := PersistValue(key, value, currentTerm)
+	success, entry := PersistValue(key, value, server.currentTerm)
 	entries := []*raft_rpc.Entry{}
 	entries = append(entries, &pb.Entry{Index: int32(entry.Index), Value: int32(entry.Value), Key: entry.Key, TermNumber: int32(entry.TermNumber)})
 	makeSureLastEntryDataIsAvailable()
@@ -68,28 +68,28 @@ func AcceptLogEntry(w http.ResponseWriter, r *http.Request) {
 	wg.Add((len(others) / 2) + 1)
 	for _, otherServer := range others {
 		go func(leaderId string, previousEntryIndex int, commitIndex int, otherServer string) {
-			appendEntriesRequest := pb.AppendEntriesRequest{Term: int32(currentTerm), LeaderId: serverId, PreviousLogIndex: int32(previousEntryIndex), Entries: entries, LeaderCommitIndex: int32(commitIndex)}
+			appendEntriesRequest := pb.AppendEntriesRequest{Term: int32(server.currentTerm), LeaderId: server.id, PreviousLogIndex: int32(previousEntryIndex), Entries: entries, LeaderCommitIndex: int32(commitIndex)}
 			feature, err := server.rpcClient.GetClientFor(otherServer).AppendEntries(context.Background(), &appendEntriesRequest, grpc.EmptyCallOption{})
 			Check(err)
 			log.Print(feature.String())
 			defer wg.Done()
-		}(serverId, previousEntryIndex, commitIndex, otherServer)
+		}(server.id, server.previousEntryIndex, server.commitIndex, otherServer)
 	}
 	wg.Wait()
 	//majority accepted, can go on
 
-	state[entry.Key] = entry
-	commitIndex = entry.Index
+	server.state[entry.Key] = entry
+	server.commitIndex = entry.Index
 
 	data := PutResponse{Success: success}
 	respond.With(w, r, http.StatusOK, data)
 }
 
 func makeSureLastEntryDataIsAvailable() {
-	if previousEntryIndex < 0 || previousEntryTerm < 0 {
+	if server.previousEntryIndex < 0 || server.previousEntryTerm < 0 {
 		entry := GetLastEntry()
-		previousEntryIndex = entry.Index
-		previousEntryTerm = entry.TermNumber
+		server.previousEntryIndex = entry.Index
+		server.previousEntryTerm = entry.TermNumber
 	}
 }
 
@@ -113,7 +113,7 @@ func getKeyAndValue(r *http.Request) (string, int, error) {
 }
 
 func home(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintf(w, "Raft module! Server: "+serverId)
+	fmt.Fprintf(w, "Raft module! Server: "+server.id)
 }
 
 func handleRequests() {

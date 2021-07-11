@@ -13,10 +13,10 @@ func (s *rpcServer) AppendEntries(ctx context.Context, in *pb.AppendEntriesReque
 	entries := mapRaftEntriesToEntries(in.Entries)
 	success, lastAppended := PersistValues(entries)
 
-	previousEntryIndex = lastAppended.Index
-	previousEntryTerm = lastAppended.TermNumber
+	server.previousEntryIndex = lastAppended.Index
+	server.previousEntryTerm = lastAppended.TermNumber
 
-	return &pb.AppendEntriesReply{Term: int32(previousEntryTerm), Success: success}, nil
+	return &pb.AppendEntriesReply{Term: int32(server.previousEntryTerm), Success: success}, nil
 }
 
 func mapRaftEntriesToEntries(rpcEntries []*pb.Entry) []Entry {

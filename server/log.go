@@ -10,7 +10,7 @@ type Entry struct {
 func RebuildStateFromLog() bool {
 	entries := GetLog()
 	for _, entry := range entries {
-		state[entry.Key] = entry
+		server.state[entry.Key] = entry
 	}
 	return true
 }
