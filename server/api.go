@@ -59,7 +59,7 @@ func AcceptLogEntry(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	key, value, err := getKeyAndValue(r)
 	Check(err)
-	success, entry := PersistValue(key, value, server.currentTerm)
+	success, entry := server.sqlLiteDb.PersistValue(key, value, server.currentTerm)
 	entries := []*raft_rpc.Entry{}
 	entries = append(entries, &pb.Entry{Index: int32(entry.Index), Value: int32(entry.Value), Key: entry.Key, TermNumber: int32(entry.TermNumber)})
 	makeSureLastEntryDataIsAvailable()
@@ -87,7 +87,7 @@ func AcceptLogEntry(w http.ResponseWriter, r *http.Request) {
 
 func makeSureLastEntryDataIsAvailable() {
 	if server.previousEntryIndex < 0 || server.previousEntryTerm < 0 {
-		entry := GetLastEntry()
+		entry := server.sqlLiteDb.GetLastEntry()
 		server.previousEntryIndex = entry.Index
 		server.previousEntryTerm = entry.TermNumber
 	}

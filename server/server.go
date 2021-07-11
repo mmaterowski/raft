@@ -26,6 +26,7 @@ type raftServer struct {
 	commitIndex        int
 	id                 string
 	votedFor           string
+	sqlLiteDb
 }
 
 type Entry struct {
@@ -47,16 +48,13 @@ func (s raftServer) startServer(id string) {
 	s.previousEntryTerm = -1
 	s.commitIndex = -1
 	log.Print("Starting server...")
-	success := SetupDB()
-	if !success {
-		log.Panic("Db not initialized properly")
-	}
+	s.sqlLiteDb = NewDb()
 
 	identifyServer()
-	s.votedFor = GetVotedFor()
-	s.currentTerm = GetCurrentTerm()
+	s.votedFor = s.sqlLiteDb.GetVotedFor()
+	s.currentTerm = s.sqlLiteDb.GetCurrentTerm()
 	stateRebuilt := s.RebuildStateFromLog()
-	PersistValue("d", 23, 20)
+	s.sqlLiteDb.PersistValue("d", 23, 20)
 	if !stateRebuilt {
 		log.Panic("Couldn't rebuild state")
 	}
@@ -76,7 +74,7 @@ func (s raftServer) startServer(id string) {
 }
 
 func (s raftServer) RebuildStateFromLog() bool {
-	entries := GetLog()
+	entries := s.sqlLiteDb.GetLog()
 	for _, entry := range entries {
 		s.state[entry.Key] = entry
 	}

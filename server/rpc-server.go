@@ -11,7 +11,7 @@ type rpcServer struct {
 
 func (s *rpcServer) AppendEntries(ctx context.Context, in *pb.AppendEntriesRequest) (*pb.AppendEntriesReply, error) {
 	entries := mapRaftEntriesToEntries(in.Entries)
-	success, lastAppended := PersistValues(entries)
+	success, lastAppended := server.sqlLiteDb.PersistValues(entries)
 
 	server.previousEntryIndex = lastAppended.Index
 	server.previousEntryTerm = lastAppended.TermNumber
