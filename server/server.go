@@ -28,6 +28,13 @@ type raftServer struct {
 	votedFor           string
 }
 
+type Entry struct {
+	Index      int
+	Value      int
+	Key        string
+	TermNumber int
+}
+
 const (
 	Follower serverType = iota + 1
 	Leader
@@ -46,9 +53,9 @@ func (s raftServer) startServer(id string) {
 	}
 
 	identifyServer()
-	server.votedFor = GetVotedFor()
-	server.currentTerm = GetCurrentTerm()
-	stateRebuilt := RebuildStateFromLog()
+	s.votedFor = GetVotedFor()
+	s.currentTerm = GetCurrentTerm()
+	stateRebuilt := s.RebuildStateFromLog()
 	PersistValue("d", 23, 20)
 	if !stateRebuilt {
 		log.Panic("Couldn't rebuild state")
@@ -66,6 +73,14 @@ func (s raftServer) startServer(id string) {
 	handleRequests()
 	//setElectionTimer?
 
+}
+
+func (s raftServer) RebuildStateFromLog() bool {
+	entries := GetLog()
+	for _, entry := range entries {
+		s.state[entry.Key] = entry
+	}
+	return true
 }
 
 func handleRPC() error {
