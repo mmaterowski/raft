@@ -7,6 +7,7 @@ import (
 
 	api "github.com/mmaterowski/raft/api"
 	helpers "github.com/mmaterowski/raft/helpers"
+	"github.com/mmaterowski/raft/persistence"
 	raftRpc "github.com/mmaterowski/raft/raft_rpc"
 	raftServer "github.com/mmaterowski/raft/raft_server"
 	rpc "github.com/mmaterowski/raft/rpc"
@@ -20,7 +21,9 @@ func main() {
 	server1 := "Kim"
 	// server2 := "Ricky"
 	// server3 := "Laszlo"
-	server := raftServer.RaftServer{}
+
+	db := persistence.NewDb(debug)
+	server := raftServer.Server{Context: &db}
 	server.StartServer(server1, debug)
 	api.IdentifyServer(server.Id, debug)
 
@@ -42,8 +45,7 @@ func handleRPC() error {
 	port := 6960
 	lis, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%d", port))
 	helpers.Check(err)
-	var opts []grpc.ServerOption
-	grpcServer := grpc.NewServer(opts...)
+	grpcServer := grpc.NewServer()
 	raftRpc.RegisterRaftRpcServer(grpcServer, &rpc.Server{})
 	log.Printf("RPC listening on port: %d", port)
 	return grpcServer.Serve(lis)

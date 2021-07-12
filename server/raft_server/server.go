@@ -5,14 +5,13 @@ import (
 	"os"
 
 	_ "github.com/mattn/go-sqlite3"
-	"github.com/mmaterowski/raft/persistence"
 	. "github.com/mmaterowski/raft/persistence"
 	. "github.com/mmaterowski/raft/structs"
 )
 
 type ServerType int
 
-type RaftServer struct {
+type Server struct {
 	ServerType
 	State              map[string]Entry
 	CurrentTerm        int
@@ -21,7 +20,7 @@ type RaftServer struct {
 	CommitIndex        int
 	Id                 string
 	VotedFor           string
-	SqlLiteDb          SqlLiteDb
+	Context
 }
 
 const (
@@ -30,7 +29,7 @@ const (
 	Candidate
 )
 
-func (s RaftServer) StartServer(id string, debug bool) {
+func (s Server) StartServer(id string, debug bool) {
 	s.Id = os.Getenv("SERVER_ID")
 	if s.Id == "" {
 		log.Fatal("Server id not set. Check Your environmental variable 'SERVER_ID'")
@@ -40,11 +39,10 @@ func (s RaftServer) StartServer(id string, debug bool) {
 	s.PreviousEntryTerm = -1
 	s.CommitIndex = -1
 	log.Print("Starting server...")
-	s.SqlLiteDb = persistence.NewDb(debug)
-	s.VotedFor = s.SqlLiteDb.GetVotedFor()
-	s.CurrentTerm = s.SqlLiteDb.GetCurrentTerm()
+	s.VotedFor = s.Context.GetVotedFor()
+	s.CurrentTerm = s.Context.GetCurrentTerm()
 	stateRebuilt := s.RebuildStateFromLog()
-	s.SqlLiteDb.PersistValue("d", 23, 20)
+	s.Context.PersistValue("d", 23, 20)
 	if !stateRebuilt {
 		log.Panic("Couldn't rebuild state")
 	}
@@ -53,8 +51,8 @@ func (s RaftServer) StartServer(id string, debug bool) {
 
 }
 
-func (s RaftServer) RebuildStateFromLog() bool {
-	entries := s.SqlLiteDb.GetLog()
+func (s Server) RebuildStateFromLog() bool {
+	entries := s.Context.GetLog()
 	for _, entry := range entries {
 		s.State[entry.Key] = entry
 	}

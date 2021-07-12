@@ -6,105 +6,36 @@ import (
 	"log"
 	"strconv"
 	"strings"
-	"time"
 
-	. "github.com/mmaterowski/raft/helpers"
-	. "github.com/mmaterowski/raft/structs"
+	helpers "github.com/mmaterowski/raft/helpers"
+	structs "github.com/mmaterowski/raft/structs"
 )
 
-type SqlLiteDb struct {
-	handle        *sql.DB
+type SqlLiteDbContext struct {
+	Context,
+	handle *sql.DB
 	uniqueEntryId string
 }
 
-func NewDb(debug bool) SqlLiteDb {
-	db := SqlLiteDb{}
-	db.uniqueEntryId = "ee9fdd8ac5b44fe5866e99bfc9e35932"
-	success := db.setup(debug)
+func NewSqlLiteDbContext(dbPath string) SqlLiteDbContext {
+	sqlContext := SqlLiteDbContext{uniqueEntryId: "ee9fdd8ac5b44fe5866e99bfc9e35932"}
+
+	connected := sqlContext.setDbHandle(dbPath)
+
+	if !connected {
+		log.Panic("Error connecting to SQL")
+	}
+	success := sqlContext.initTablesIfNeeded()
+
 	if !success {
 		log.Panic("Db not initialized properly")
 	}
-	return db
+
+	return sqlContext
 }
 
-func (s *SqlLiteDb) connectToSql(debug bool) bool {
-	dbPath := "../data/raft-db/log.db"
-	if debug {
-		dbPath = "./log.db"
-	}
-	database, err := sql.Open("sqlite3", dbPath)
-	if err != nil {
-		log.Print(err)
-	}
-	database.SetMaxOpenConns(25)
-	database.SetMaxIdleConns(25)
-	database.SetConnMaxLifetime(5 * time.Minute)
-	s.handle = database
-	return database != nil
-}
-
-func (s *SqlLiteDb) setup(debug bool) bool {
-	connected := s.connectToSql(debug)
-	if !connected {
-		log.Print("Error connecting to SQL")
-		return false
-	}
-	tablesInitialized := s.initTablesIfNeeded()
-	return tablesInitialized
-
-}
-
-func (s SqlLiteDb) initTablesIfNeeded() bool {
-	entriesCreated := s.createEntriesTableIfNotExists()
-	termCreated := s.createTermTableIfNotExists()
-	votedForCreated := s.createVotedForIfNotExists()
-	return entriesCreated && termCreated && votedForCreated
-}
-
-func (s SqlLiteDb) createEntriesTableIfNotExists() bool {
-	createStatement, err := s.handle.Prepare(`CREATE TABLE IF NOT EXISTS "Entries" (
-		"Index"	INTEGER,
-		"Value"	INTEGER,
-		"Key"	TEXT,
-		"TermNumber"	INTEGER,
-		PRIMARY KEY("Index" AUTOINCREMENT)
-	)`)
-	if err != nil {
-		log.Print(err)
-		return false
-	}
-	success, _ := executeSafely(createStatement)
-	return success
-
-}
-
-func (s SqlLiteDb) createTermTableIfNotExists() bool {
-	createStatement, err := s.handle.Prepare(`CREATE TABLE IF NOT EXISTS "Term" (
-		"CurrentTerm"	INTEGER
-	, "UniqueEntryId"	TEXT)`)
-	if err != nil {
-		log.Print(err)
-		return false
-	}
-	success, _ := executeSafely(createStatement)
-	return success
-
-}
-
-func (s SqlLiteDb) createVotedForIfNotExists() bool {
-	createStatement, err := s.handle.Prepare(`CREATE TABLE IF NOT EXISTS "VotedFor" (
-		"VotedForId"	TEXT,
-		"UniqueEntryId"	TEXT
-	)`)
-	if err != nil {
-		log.Print(err)
-	}
-	success, _ := executeSafely(createStatement)
-	return success
-}
-
-func (db SqlLiteDb) PersistValue(key string, value int, termNumber int) (bool, Entry) {
-	var entry Entry
+func (db SqlLiteDbContext) PersistValue(key string, value int, termNumber int) (bool, structs.Entry) {
+	var entry structs.Entry
 	statement, _ := db.handle.Prepare("INSERT INTO Entries (Value, Key, TermNumber) VALUES (?, ?, ?)")
 	success, result := executeSafely(statement, value, key, termNumber)
 
@@ -115,18 +46,18 @@ func (db SqlLiteDb) PersistValue(key string, value int, termNumber int) (bool, E
 	if result != nil {
 		resultId, _ := result.LastInsertId()
 		previousEntryIndex := int(resultId)
-		entry = Entry{Index: previousEntryIndex, Value: value, Key: key, TermNumber: termNumber}
+		entry = structs.Entry{Index: previousEntryIndex, Value: value, Key: key, TermNumber: termNumber}
 	}
 
 	return success, entry
 }
 
-func (db SqlLiteDb) PersistValues(entries []Entry) (bool, Entry) {
+func (db SqlLiteDbContext) PersistValues(entries []structs.Entry) (bool, structs.Entry) {
 	if len(entries) == 0 {
-		return true, Entry{}
+		return true, structs.Entry{}
 	}
 
-	var lastEntry Entry = entries[len(entries)-1]
+	var lastEntry structs.Entry = entries[len(entries)-1]
 	insert := "INSERT INTO Entries (Value, Key, TermNumber) VALUES "
 	for _, entry := range entries {
 		insert += fmt.Sprintf(`(%d,"%s",%d),`, entry.Value, entry.Key, entry.TermNumber)
@@ -143,29 +74,29 @@ func (db SqlLiteDb) PersistValues(entries []Entry) (bool, Entry) {
 	if result != nil {
 		resultId, _ := result.LastInsertId()
 		index := int(resultId)
-		lastEntry = Entry{Index: index, Value: lastEntry.Value, Key: lastEntry.Key, TermNumber: lastEntry.TermNumber}
+		lastEntry = structs.Entry{Index: index, Value: lastEntry.Value, Key: lastEntry.Key, TermNumber: lastEntry.TermNumber}
 
 	}
 
 	return success, lastEntry
 }
 
-func (db SqlLiteDb) GetEntryAtIndex(index int) bool {
+func (db SqlLiteDbContext) GetEntryAtIndex(index int) bool {
 	selectStatement := fmt.Sprintf(`SELECT * FROM Entries WHERE "Index"=%d`, index)
 	statement, _ := db.handle.Prepare(selectStatement)
 	success, _ := executeSafely(statement)
 	return success
 }
 
-func (db SqlLiteDb) GetLastEntry() Entry {
+func (db SqlLiteDbContext) GetLastEntry() structs.Entry {
 	selectStatement := `SELECT* FROM Entries WHERE "Index"=(SELECT MAX("Index") FROM Entries)`
-	var entry Entry
+	var entry structs.Entry
 	err := db.handle.QueryRow(selectStatement).Scan(&entry.Index, &entry.Value, &entry.Key, &entry.TermNumber)
-	Check(err)
+	helpers.Check(err)
 	return entry
 }
 
-func (db SqlLiteDb) GetCurrentTerm() int {
+func (db SqlLiteDbContext) GetCurrentTerm() int {
 	selectStatement := fmt.Sprintf(`SELECT CurrentTerm FROM Term WHERE "UniqueEntryId"="%s"`, db.uniqueEntryId)
 	currentTermNumber := 0
 	sqlRes := ""
@@ -185,14 +116,14 @@ func (db SqlLiteDb) GetCurrentTerm() int {
 	return currentTermNumber
 }
 
-func (db SqlLiteDb) SetCurrentTerm(currentTerm int) bool {
+func (db SqlLiteDbContext) SetCurrentTerm(currentTerm int) bool {
 	insertStatement := fmt.Sprintf(`UPDATE Term SET CurrentTerm="%d" WHERE UniqueEntryId="%s"`, currentTerm, db.uniqueEntryId)
 	statement, _ := db.handle.Prepare(insertStatement)
 	success, _ := executeSafely(statement)
 	return success
 }
 
-func (db SqlLiteDb) GetVotedFor() string {
+func (db SqlLiteDbContext) GetVotedFor() string {
 	selectStatement := fmt.Sprintf(`SELECT VotedForId FROM VotedFor WHERE "UniqueEntryId"="%s"`, db.uniqueEntryId)
 	foundId := ""
 	err := db.handle.QueryRow(selectStatement).Scan(&foundId)
@@ -203,22 +134,22 @@ func (db SqlLiteDb) GetVotedFor() string {
 	return foundId
 }
 
-func (db SqlLiteDb) SetVotedFor(votedForId string) bool {
+func (db SqlLiteDbContext) SetVotedFor(votedForId string) bool {
 	insertStatement := fmt.Sprintf(`UPDATE VotedFor SET VotedForId="%s" WHERE UniqueEntryId="%s"`, votedForId, db.uniqueEntryId)
 	statement, _ := db.handle.Prepare(insertStatement)
 	success, _ := executeSafely(statement)
 	return success
 }
 
-func (db SqlLiteDb) GetLog() []Entry {
+func (db SqlLiteDbContext) GetLog() []structs.Entry {
 	selectStatement := `SELECT * FROM Entries ORDER BY "Index"`
 	rows, err := db.handle.Query(selectStatement)
-	Check(err)
-	entries := []Entry{}
+	helpers.Check(err)
+	entries := []structs.Entry{}
 	for rows.Next() {
-		var entry Entry
+		var entry structs.Entry
 		err = rows.Scan(&entry.Index, &entry.Value, &entry.Key, &entry.TermNumber)
-		Check(err)
+		helpers.Check(err)
 		entries = append(entries, entry)
 	}
 	return entries

@@ -13,7 +13,7 @@ import (
 	. "github.com/mmaterowski/raft/helpers"
 	"github.com/mmaterowski/raft/raft_rpc"
 	pb "github.com/mmaterowski/raft/raft_rpc"
-	. "github.com/mmaterowski/raft/raft_server"
+	raftServer "github.com/mmaterowski/raft/raft_server"
 	. "github.com/mmaterowski/raft/rpc"
 
 	"github.com/gorilla/mux"
@@ -25,11 +25,11 @@ var laszloId = "Laszlo"
 var rickyId = "Ricky"
 var kimId = "Kim"
 var others []string
-var RaftServerReference *RaftServer
+var RaftServerReference *raftServer.Server
 var RpcClientReference *Client
 
 type StatusResponse struct {
-	Status ServerType
+	Status raftServer.ServerType
 }
 
 type ValueResponse struct {
@@ -84,7 +84,7 @@ func AcceptLogEntry(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	key, value, err := getKeyAndValue(r)
 	Check(err)
-	success, entry := RaftServerReference.SqlLiteDb.PersistValue(key, value, RaftServerReference.CurrentTerm)
+	success, entry := RaftServerReference.Context.PersistValue(key, value, RaftServerReference.CurrentTerm)
 	entries := []*raft_rpc.Entry{}
 	entries = append(entries, &pb.Entry{Index: int32(entry.Index), Value: int32(entry.Value), Key: entry.Key, TermNumber: int32(entry.TermNumber)})
 	makeSureLastEntryDataIsAvailable()
@@ -112,7 +112,7 @@ func AcceptLogEntry(w http.ResponseWriter, r *http.Request) {
 
 func makeSureLastEntryDataIsAvailable() {
 	if RaftServerReference.PreviousEntryIndex < 0 || RaftServerReference.PreviousEntryTerm < 0 {
-		entry := RaftServerReference.SqlLiteDb.GetLastEntry()
+		entry := RaftServerReference.Context.GetLastEntry()
 		RaftServerReference.PreviousEntryIndex = entry.Index
 		RaftServerReference.PreviousEntryTerm = entry.TermNumber
 	}

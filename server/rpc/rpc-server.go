@@ -10,17 +10,17 @@ import (
 
 type Server struct {
 	pb.UnimplementedRaftRpcServer
-	s.RaftServer
+	s.Server
 }
 
 func (s *Server) AppendEntries(ctx context.Context, in *pb.AppendEntriesRequest) (*pb.AppendEntriesReply, error) {
 	entries := mapRaftEntriesToEntries(in.Entries)
-	success, lastAppended := s.RaftServer.SqlLiteDb.PersistValues(entries)
+	success, lastAppended := s.Server.Context.PersistValues(entries)
 
-	s.RaftServer.PreviousEntryIndex = lastAppended.Index
-	s.RaftServer.PreviousEntryTerm = lastAppended.TermNumber
+	s.Server.PreviousEntryIndex = lastAppended.Index
+	s.Server.PreviousEntryTerm = lastAppended.TermNumber
 
-	return &pb.AppendEntriesReply{Term: int32(s.RaftServer.PreviousEntryTerm), Success: success}, nil
+	return &pb.AppendEntriesReply{Term: int32(s.Server.PreviousEntryTerm), Success: success}, nil
 }
 
 func mapRaftEntriesToEntries(rpcEntries []*pb.Entry) []Entry {
