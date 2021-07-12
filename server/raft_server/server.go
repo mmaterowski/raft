@@ -29,7 +29,7 @@ const (
 	Candidate
 )
 
-func (s Server) StartServer(id string, debug bool) {
+func (s *Server) StartServer(id string, debug bool) {
 	s.Id = os.Getenv("SERVER_ID")
 	if s.Id == "" {
 		log.Fatal("Server id not set. Check Your environmental variable 'SERVER_ID'")

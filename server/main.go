@@ -8,13 +8,13 @@ import (
 	api "github.com/mmaterowski/raft/api"
 	helpers "github.com/mmaterowski/raft/helpers"
 	"github.com/mmaterowski/raft/persistence"
-	raftRpc "github.com/mmaterowski/raft/raft_rpc"
-	raftServer "github.com/mmaterowski/raft/raft_server"
+	protoBuff "github.com/mmaterowski/raft/raft_rpc"
+	raft "github.com/mmaterowski/raft/raft_server"
 	rpc "github.com/mmaterowski/raft/rpc"
 	"google.golang.org/grpc"
 )
 
-var debug = true
+var debug = false
 
 func main() {
 	helpers.PrintAsciiHelloString()
@@ -23,7 +23,7 @@ func main() {
 	// server3 := "Laszlo"
 
 	db := persistence.NewDb(debug)
-	server := raftServer.Server{Context: &db}
+	server := raft.Server{Context: &db}
 	server.StartServer(server1, debug)
 	api.IdentifyServer(server.Id, debug)
 
@@ -46,7 +46,7 @@ func handleRPC() error {
 	lis, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%d", port))
 	helpers.Check(err)
 	grpcServer := grpc.NewServer()
-	raftRpc.RegisterRaftRpcServer(grpcServer, &rpc.Server{})
+	protoBuff.RegisterRaftRpcServer(grpcServer, &rpc.Server{})
 	log.Printf("RPC listening on port: %d", port)
 	return grpcServer.Serve(lis)
 }
