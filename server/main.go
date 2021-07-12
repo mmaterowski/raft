@@ -5,46 +5,46 @@ import (
 	"log"
 	"net"
 
-	. "github.com/mmaterowski/raft/api"
-	. "github.com/mmaterowski/raft/helpers"
-	. "github.com/mmaterowski/raft/raft_rpc"
-	. "github.com/mmaterowski/raft/raft_server"
-	. "github.com/mmaterowski/raft/rpc"
+	api "github.com/mmaterowski/raft/api"
+	helpers "github.com/mmaterowski/raft/helpers"
+	raftRpc "github.com/mmaterowski/raft/raft_rpc"
+	raftServer "github.com/mmaterowski/raft/raft_server"
+	rpc "github.com/mmaterowski/raft/rpc"
 	"google.golang.org/grpc"
 )
 
 var debug = true
 
 func main() {
-	PrintAsciiHelloString()
+	helpers.PrintAsciiHelloString()
 	server1 := "Kim"
 	// server2 := "Ricky"
 	// server3 := "Laszlo"
-	server := RaftServer{}
+	server := raftServer.RaftServer{}
 	server.StartServer(server1, debug)
-	IdentifyServer(server.Id, debug)
+	api.IdentifyServer(server.Id, debug)
 
 	go func() {
 		err := handleRPC()
-		Check(err)
+		helpers.Check(err)
 	}()
 
 	go func() {
-		client := Client{}
+		client := rpc.Client{}
 		client.SetupRpcClient(server.Id)
 	}()
 
-	HandleRequests()
+	api.HandleRequests()
 
 }
 
 func handleRPC() error {
 	port := 6960
 	lis, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%d", port))
-	Check(err)
+	helpers.Check(err)
 	var opts []grpc.ServerOption
 	grpcServer := grpc.NewServer(opts...)
-	RegisterRaftRpcServer(grpcServer, &Server{})
+	raftRpc.RegisterRaftRpcServer(grpcServer, &rpc.Server{})
 	log.Printf("RPC listening on port: %d", port)
 	return grpcServer.Serve(lis)
 }

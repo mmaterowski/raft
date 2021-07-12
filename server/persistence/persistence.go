@@ -9,14 +9,8 @@ import (
 	"time"
 
 	. "github.com/mmaterowski/raft/helpers"
+	. "github.com/mmaterowski/raft/structs"
 )
-
-type Entry struct {
-	Index      int
-	Value      int
-	Key        string
-	TermNumber int
-}
 
 type SqlLiteDb struct {
 	handle        *sql.DB

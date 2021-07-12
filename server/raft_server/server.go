@@ -5,21 +5,23 @@ import (
 	"os"
 
 	_ "github.com/mattn/go-sqlite3"
-	persistence "github.com/mmaterowski/raft/persistence"
+	"github.com/mmaterowski/raft/persistence"
+	. "github.com/mmaterowski/raft/persistence"
+	. "github.com/mmaterowski/raft/structs"
 )
 
 type ServerType int
 
 type RaftServer struct {
 	ServerType
-	State              map[string]persistence.Entry
+	State              map[string]Entry
 	CurrentTerm        int
 	PreviousEntryIndex int
 	PreviousEntryTerm  int
 	CommitIndex        int
 	Id                 string
 	VotedFor           string
-	SqlLiteDb          persistence.SqlLiteDb
+	SqlLiteDb          SqlLiteDb
 }
 
 const (
@@ -33,7 +35,7 @@ func (s RaftServer) StartServer(id string, debug bool) {
 	if s.Id == "" {
 		log.Fatal("Server id not set. Check Your environmental variable 'SERVER_ID'")
 	}
-	s.State = make(map[string]persistence.Entry)
+	s.State = make(map[string]Entry)
 	s.PreviousEntryIndex = -1
 	s.PreviousEntryTerm = -1
 	s.CommitIndex = -1

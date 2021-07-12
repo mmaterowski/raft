@@ -14,6 +14,7 @@ import (
 	"github.com/mmaterowski/raft/raft_rpc"
 	pb "github.com/mmaterowski/raft/raft_rpc"
 	. "github.com/mmaterowski/raft/raft_server"
+	. "github.com/mmaterowski/raft/rpc"
 
 	"github.com/gorilla/mux"
 	"google.golang.org/grpc"
@@ -24,10 +25,13 @@ var laszloId = "Laszlo"
 var rickyId = "Ricky"
 var kimId = "Kim"
 var others []string
+var RaftServerReference *RaftServer
+var RpcClientReference *Client
 
 type StatusResponse struct {
-	Status serverType
+	Status ServerType
 }
+
 type ValueResponse struct {
 	Value int
 }
@@ -50,13 +54,13 @@ func IdentifyServer(serverId string, debug bool) {
 	case "Laszlo":
 		others = append(others, rickyId, kimId)
 	default:
-		log.Panic("Couldn't identify server")
+		log.Panic("Couldn't identify RaftServerReference")
 	}
 }
 
 func GetStatus(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	data := StatusResponse{Status: server.serverType}
+	data := StatusResponse{Status: RaftServerReference.ServerType}
 	respond.With(w, r, http.StatusOK, data)
 }
 
@@ -71,7 +75,7 @@ func GetKeyValue(w http.ResponseWriter, r *http.Request) {
 		respond.With(w, r, http.StatusInternalServerError, message)
 	}
 
-	entry := server.state[key]
+	entry := RaftServerReference.State[key]
 	data := ValueResponse{Value: entry.Value}
 	respond.With(w, r, http.StatusOK, data)
 }
@@ -80,7 +84,7 @@ func AcceptLogEntry(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	key, value, err := getKeyAndValue(r)
 	Check(err)
-	success, entry := server.sqlLiteDb.PersistValue(key, value, server.currentTerm)
+	success, entry := RaftServerReference.SqlLiteDb.PersistValue(key, value, RaftServerReference.CurrentTerm)
 	entries := []*raft_rpc.Entry{}
 	entries = append(entries, &pb.Entry{Index: int32(entry.Index), Value: int32(entry.Value), Key: entry.Key, TermNumber: int32(entry.TermNumber)})
 	makeSureLastEntryDataIsAvailable()
@@ -89,28 +93,28 @@ func AcceptLogEntry(w http.ResponseWriter, r *http.Request) {
 	wg.Add((len(others) / 2) + 1)
 	for _, otherServer := range others {
 		go func(leaderId string, previousEntryIndex int, commitIndex int, otherServer string) {
-			appendEntriesRequest := pb.AppendEntriesRequest{Term: int32(server.currentTerm), LeaderId: server.id, PreviousLogIndex: int32(previousEntryIndex), Entries: entries, LeaderCommitIndex: int32(commitIndex)}
-			feature, err := server.rpcClient.GetClientFor(otherServer).AppendEntries(context.Background(), &appendEntriesRequest, grpc.EmptyCallOption{})
+			appendEntriesRequest := pb.AppendEntriesRequest{Term: int32(RaftServerReference.CurrentTerm), LeaderId: RaftServerReference.Id, PreviousLogIndex: int32(previousEntryIndex), Entries: entries, LeaderCommitIndex: int32(commitIndex)}
+			feature, err := RpcClientReference.GetClientFor(otherServer).AppendEntries(context.Background(), &appendEntriesRequest, grpc.EmptyCallOption{})
 			Check(err)
 			log.Print(feature.String())
 			defer wg.Done()
-		}(server.id, server.previousEntryIndex, server.commitIndex, otherServer)
+		}(RaftServerReference.Id, RaftServerReference.PreviousEntryIndex, RaftServerReference.CommitIndex, otherServer)
 	}
 	wg.Wait()
 	//majority accepted, can go on
 
-	server.state[entry.Key] = entry
-	server.commitIndex = entry.Index
+	RaftServerReference.State[entry.Key] = entry
+	RaftServerReference.CommitIndex = entry.Index
 
 	data := PutResponse{Success: success}
 	respond.With(w, r, http.StatusOK, data)
 }
 
 func makeSureLastEntryDataIsAvailable() {
-	if server.previousEntryIndex < 0 || server.previousEntryTerm < 0 {
-		entry := server.sqlLiteDb.GetLastEntry()
-		server.previousEntryIndex = entry.Index
-		server.previousEntryTerm = entry.TermNumber
+	if RaftServerReference.PreviousEntryIndex < 0 || RaftServerReference.PreviousEntryTerm < 0 {
+		entry := RaftServerReference.SqlLiteDb.GetLastEntry()
+		RaftServerReference.PreviousEntryIndex = entry.Index
+		RaftServerReference.PreviousEntryTerm = entry.TermNumber
 	}
 }
 
@@ -134,7 +138,7 @@ func getKeyAndValue(r *http.Request) (string, int, error) {
 }
 
 func home(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintf(w, "Raft module! Server: "+server.id)
+	fmt.Fprintf(w, "Raft module! RaftServerReference: "+RaftServerReference.Id)
 }
 
 func HandleRequests() {

@@ -5,6 +5,7 @@ import (
 
 	pb "github.com/mmaterowski/raft/raft_rpc"
 	s "github.com/mmaterowski/raft/raft_server"
+	. "github.com/mmaterowski/raft/structs"
 )
 
 type Server struct {
