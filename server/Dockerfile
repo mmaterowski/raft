@@ -1,16 +1,22 @@
 ##
 ## Deploy
 ##
+
+
 FROM golang:1.16-buster AS build
 LABEL maintainer="Michal Materowski <michal.materowski@gmail.com>"
 WORKDIR /app
-
+ 
 # Download dependencies
 COPY go.mod .
 COPY go.sum .
 RUN go mod download
+RUN go get github.com/mattn/go-sqlite3
+RUN go install github.com/mattn/go-sqlite3
 
 COPY . .
+
+
 RUN go build -o /raft 
 
 ##

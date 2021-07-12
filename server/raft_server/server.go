@@ -2,7 +2,6 @@ package raft_server
 
 import (
 	"log"
-	"os"
 
 	_ "github.com/mattn/go-sqlite3"
 	. "github.com/mmaterowski/raft/persistence"
@@ -29,11 +28,8 @@ const (
 	Candidate
 )
 
-func (s *Server) StartServer(id string, debug bool) {
-	s.Id = os.Getenv("SERVER_ID")
-	if s.Id == "" {
-		log.Fatal("Server id not set. Check Your environmental variable 'SERVER_ID'")
-	}
+func (s *Server) StartServer(id string) {
+	s.Id = id
 	s.State = make(map[string]Entry)
 	s.PreviousEntryIndex = -1
 	s.PreviousEntryTerm = -1

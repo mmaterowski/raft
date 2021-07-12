@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"os"
 
 	api "github.com/mmaterowski/raft/api"
 	helpers "github.com/mmaterowski/raft/helpers"
@@ -18,13 +19,18 @@ var debug = false
 
 func main() {
 	helpers.PrintAsciiHelloString()
-	server1 := "Kim"
-	// server2 := "Ricky"
-	// server3 := "Laszlo"
+
+	serverId := os.Getenv("SERVER_ID")
+	if debug {
+		serverId = "Kim"
+	}
+	if serverId == "" {
+		log.Fatal("Server id not set. Check Your environmental variable 'SERVER_ID'")
+	}
 
 	db := persistence.NewDb(debug)
 	server := raft.Server{Context: &db}
-	server.StartServer(server1, debug)
+	server.StartServer(serverId)
 	api.IdentifyServer(server.Id, debug)
 
 	go func() {
