@@ -9,7 +9,7 @@ type Setup interface {
 type Context interface {
 	PersistValue(key string, value int, termNumber int) (bool, structs.Entry)
 	PersistValues(entries []structs.Entry) (bool, structs.Entry)
-	GetEntryAtIndex(index int) bool
+	GetEntryAtIndex(index int) (structs.Entry, error)
 	GetLastEntry() structs.Entry
 	GetCurrentTerm() int
 	GetVotedFor() string

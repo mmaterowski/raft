@@ -81,11 +81,11 @@ func (db SqlLiteDbContext) PersistValues(entries []structs.Entry) (bool, structs
 	return success, lastEntry
 }
 
-func (db SqlLiteDbContext) GetEntryAtIndex(index int) bool {
+func (db SqlLiteDbContext) GetEntryAtIndex(index int) (structs.Entry, error) {
 	selectStatement := fmt.Sprintf(`SELECT * FROM Entries WHERE "Index"=%d`, index)
-	statement, _ := db.handle.Prepare(selectStatement)
-	success, _ := executeSafely(statement)
-	return success
+	var entry structs.Entry
+	err := db.handle.QueryRow(selectStatement).Scan(&entry.Index, &entry.Value, &entry.Key, &entry.TermNumber)
+	return entry, err
 }
 
 func (db SqlLiteDbContext) GetLastEntry() structs.Entry {

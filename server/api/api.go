@@ -15,6 +15,7 @@ import (
 	pb "github.com/mmaterowski/raft/raft_rpc"
 	raftServer "github.com/mmaterowski/raft/raft_server"
 	. "github.com/mmaterowski/raft/rpc"
+	structs "github.com/mmaterowski/raft/structs"
 
 	"github.com/gorilla/mux"
 	"google.golang.org/grpc"
@@ -29,7 +30,7 @@ var RaftServerReference *raftServer.Server
 var RpcClientReference *Client
 
 type StatusResponse struct {
-	Status raftServer.ServerType
+	Status structs.ServerType
 }
 
 type ValueResponse struct {
@@ -85,29 +86,50 @@ func AcceptLogEntry(w http.ResponseWriter, r *http.Request) {
 	key, value, err := getKeyAndValue(r)
 	Check(err)
 	success, entry := RaftServerReference.Context.PersistValue(key, value, RaftServerReference.CurrentTerm)
+	if !success {
+		respond.With(w, r, http.StatusOK, PutResponse{Success: success})
+		return
+	}
+
 	entries := []*raft_rpc.Entry{}
 	entries = append(entries, &pb.Entry{Index: int32(entry.Index), Value: int32(entry.Value), Key: entry.Key, TermNumber: int32(entry.TermNumber)})
 	makeSureLastEntryDataIsAvailable()
+	//blocking call
+	orderFollowersToAppendEntries(entries)
+	RaftServerReference.State[entry.Key] = entry
+	RaftServerReference.CommitIndex = entry.Index
+
+	orderFollowersToCommitTheirEntries()
+
+	data := PutResponse{Success: success}
+	respond.With(w, r, http.StatusOK, data)
+}
+
+func orderFollowersToAppendEntries(entries []*raft_rpc.Entry) {
 	var wg sync.WaitGroup
 
 	wg.Add((len(others) / 2) + 1)
 	for _, otherServer := range others {
-		go func(leaderId string, previousEntryIndex int, commitIndex int, otherServer string) {
-			appendEntriesRequest := pb.AppendEntriesRequest{Term: int32(RaftServerReference.CurrentTerm), LeaderId: RaftServerReference.Id, PreviousLogIndex: int32(previousEntryIndex), Entries: entries, LeaderCommitIndex: int32(commitIndex)}
+		go func(leaderId string, previousEntryIndex int, previousEntryTerm int, commitIndex int, otherServer string) {
+			appendEntriesRequest := pb.AppendEntriesRequest{Term: int32(RaftServerReference.CurrentTerm), LeaderId: RaftServerReference.Id, PreviousLogIndex: int32(previousEntryIndex), PreviousLogTerm: int32(previousEntryTerm), Entries: entries, LeaderCommitIndex: int32(commitIndex)}
 			feature, err := RpcClientReference.GetClientFor(otherServer).AppendEntries(context.Background(), &appendEntriesRequest, grpc.EmptyCallOption{})
 			Check(err)
 			log.Print(feature.String())
 			defer wg.Done()
-		}(RaftServerReference.Id, RaftServerReference.PreviousEntryIndex, RaftServerReference.CommitIndex, otherServer)
+		}(RaftServerReference.Id, RaftServerReference.PreviousEntryIndex, RaftServerReference.PreviousEntryTerm, RaftServerReference.CommitIndex, otherServer)
 	}
 	wg.Wait()
-	//majority accepted, can go on
 
-	RaftServerReference.State[entry.Key] = entry
-	RaftServerReference.CommitIndex = entry.Index
+}
 
-	data := PutResponse{Success: success}
-	respond.With(w, r, http.StatusOK, data)
+func orderFollowersToCommitTheirEntries() {
+	for _, otherServer := range others {
+		go func(commitIndex int, otherServer string) {
+			request := pb.CommitAvailableEntriesRequest{LeaderCommitIndex: int32(commitIndex)}
+			RpcClientReference.GetClientFor(otherServer).CommitAvailableEntries(context.Background(), &request)
+		}(RaftServerReference.CommitIndex, otherServer)
+	}
+
 }
 
 func makeSureLastEntryDataIsAvailable() {

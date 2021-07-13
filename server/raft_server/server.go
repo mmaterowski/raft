@@ -8,8 +8,6 @@ import (
 	. "github.com/mmaterowski/raft/structs"
 )
 
-type ServerType int
-
 type Server struct {
 	ServerType
 	State              map[string]Entry
@@ -22,14 +20,9 @@ type Server struct {
 	Context
 }
 
-const (
-	Follower ServerType = iota + 1
-	Leader
-	Candidate
-)
-
 func (s *Server) StartServer(id string) {
 	s.Id = id
+	s.ServerType = ServerType(Candidate)
 	s.State = make(map[string]Entry)
 	s.PreviousEntryIndex = -1
 	s.PreviousEntryTerm = -1

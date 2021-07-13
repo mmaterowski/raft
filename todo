@@ -1,4 +1,4 @@
-1.5 Logic for appneding entry success/fail
-2. Optimize docker build ~50sec now
-3. Learn about &,*,slices mappings more go concepts
-4. Find testing framework and start writing tests
+1 Logic for appneding entry success/fail
+2. Learn about &,*,slices mappings more go concepts
+3. Find testing framework and test stuff up
+4. Election timer

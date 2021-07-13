@@ -20,6 +20,7 @@ const _ = grpc.SupportPackageIsVersion7
 type RaftRpcClient interface {
 	AppendEntries(ctx context.Context, in *AppendEntriesRequest, opts ...grpc.CallOption) (*AppendEntriesReply, error)
 	RequestVote(ctx context.Context, in *RequestVoteRequest, opts ...grpc.CallOption) (*RequestVoteReply, error)
+	CommitAvailableEntries(ctx context.Context, in *CommitAvailableEntriesRequest, opts ...grpc.CallOption) (*Empty, error)
 }
 
 type raftRpcClient struct {
@@ -48,12 +49,22 @@ func (c *raftRpcClient) RequestVote(ctx context.Context, in *RequestVoteRequest,
 	return out, nil
 }
 
+func (c *raftRpcClient) CommitAvailableEntries(ctx context.Context, in *CommitAvailableEntriesRequest, opts ...grpc.CallOption) (*Empty, error) {
+	out := new(Empty)
+	err := c.cc.Invoke(ctx, "/RaftRpc/CommitAvailableEntries", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // RaftRpcServer is the server API for RaftRpc service.
 // All implementations must embed UnimplementedRaftRpcServer
 // for forward compatibility
 type RaftRpcServer interface {
 	AppendEntries(context.Context, *AppendEntriesRequest) (*AppendEntriesReply, error)
 	RequestVote(context.Context, *RequestVoteRequest) (*RequestVoteReply, error)
+	CommitAvailableEntries(context.Context, *CommitAvailableEntriesRequest) (*Empty, error)
 	mustEmbedUnimplementedRaftRpcServer()
 }
 
@@ -66,6 +77,9 @@ func (UnimplementedRaftRpcServer) AppendEntries(context.Context, *AppendEntriesR
 }
 func (UnimplementedRaftRpcServer) RequestVote(context.Context, *RequestVoteRequest) (*RequestVoteReply, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method RequestVote not implemented")
+}
+func (UnimplementedRaftRpcServer) CommitAvailableEntries(context.Context, *CommitAvailableEntriesRequest) (*Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CommitAvailableEntries not implemented")
 }
 func (UnimplementedRaftRpcServer) mustEmbedUnimplementedRaftRpcServer() {}
 
@@ -116,6 +130,24 @@ func _RaftRpc_RequestVote_Handler(srv interface{}, ctx context.Context, dec func
 	return interceptor(ctx, in, info, handler)
 }
 
+func _RaftRpc_CommitAvailableEntries_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CommitAvailableEntriesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RaftRpcServer).CommitAvailableEntries(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/RaftRpc/CommitAvailableEntries",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RaftRpcServer).CommitAvailableEntries(ctx, req.(*CommitAvailableEntriesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // RaftRpc_ServiceDesc is the grpc.ServiceDesc for RaftRpc service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -130,6 +162,10 @@ var RaftRpc_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "RequestVote",
 			Handler:    _RaftRpc_RequestVote_Handler,
+		},
+		{
+			MethodName: "CommitAvailableEntries",
+			Handler:    _RaftRpc_CommitAvailableEntries_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

@@ -1,6 +1,7 @@
 package helpers
 
 import (
+	"encoding/json"
 	"log"
 	"strings"
 )
@@ -17,6 +18,11 @@ func TrimSuffix(s, suffix string) string {
 		s = s[:len(s)-len(suffix)]
 	}
 	return s
+}
+
+func PrettyPrint(i interface{}) string {
+	s, _ := json.MarshalIndent(i, "", "\t")
+	return string(s)
 }
 
 func PrintAsciiHelloString() {
