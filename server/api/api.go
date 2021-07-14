@@ -112,9 +112,10 @@ func orderFollowersToAppendEntries(entries []*raft_rpc.Entry) {
 	for _, otherServer := range others {
 		go func(leaderId string, previousEntryIndex int, previousEntryTerm int, commitIndex int, otherServer string) {
 			appendEntriesRequest := pb.AppendEntriesRequest{Term: int32(RaftServerReference.CurrentTerm), LeaderId: RaftServerReference.Id, PreviousLogIndex: int32(previousEntryIndex), PreviousLogTerm: int32(previousEntryTerm), Entries: entries, LeaderCommitIndex: int32(commitIndex)}
-			feature, err := RpcClientReference.GetClientFor(otherServer).AppendEntries(context.Background(), &appendEntriesRequest, grpc.EmptyCallOption{})
+			reply, err := RpcClientReference.GetClientFor(otherServer).AppendEntries(context.Background(), &appendEntriesRequest, grpc.EmptyCallOption{})
+
 			Check(err)
-			log.Print(feature.String())
+			log.Print(reply.String())
 			defer wg.Done()
 		}(RaftServerReference.Id, RaftServerReference.PreviousEntryIndex, RaftServerReference.PreviousEntryTerm, RaftServerReference.CommitIndex, otherServer)
 	}

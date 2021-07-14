@@ -16,6 +16,7 @@ type Context interface {
 	SetCurrentTerm(currentTerm int) bool
 	SetVotedFor(votedForId string) bool
 	GetLog() []structs.Entry
+	DeleteAllEntriesStartingFrom(index int) bool
 }
 
 type Db struct {

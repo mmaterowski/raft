@@ -1,4 +1,5 @@
 1 Logic for appneding entry success/fail
 2. Learn about &,*,slices mappings more go concepts
 3. Find testing framework and test stuff up
+5. Handle multiple entries append
 4. Election timer

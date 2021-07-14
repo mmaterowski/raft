@@ -85,6 +85,9 @@ func (db SqlLiteDbContext) GetEntryAtIndex(index int) (structs.Entry, error) {
 	selectStatement := fmt.Sprintf(`SELECT * FROM Entries WHERE "Index"=%d`, index)
 	var entry structs.Entry
 	err := db.handle.QueryRow(selectStatement).Scan(&entry.Index, &entry.Value, &entry.Key, &entry.TermNumber)
+	if err != nil {
+		log.Println(err)
+	}
 	return entry, err
 }
 
@@ -153,6 +156,13 @@ func (db SqlLiteDbContext) GetLog() []structs.Entry {
 		entries = append(entries, entry)
 	}
 	return entries
+}
+
+func (db SqlLiteDbContext) DeleteAllEntriesStartingFrom(index int) bool {
+	insert := fmt.Sprintf("DELETE FROM Entries Where Index >= '%d'", index)
+	statement, _ := db.handle.Prepare(insert)
+	success, _ := executeSafely(statement)
+	return success
 }
 
 func executeSafely(sqlStatement *sql.Stmt, args ...interface{}) (bool, sql.Result) {

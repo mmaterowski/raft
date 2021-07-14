@@ -13,6 +13,13 @@ func Check(e error) {
 	}
 }
 
+func Min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
 func TrimSuffix(s, suffix string) string {
 	if strings.HasSuffix(s, suffix) {
 		s = s[:len(s)-len(suffix)]
