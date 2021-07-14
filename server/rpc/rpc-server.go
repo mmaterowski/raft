@@ -53,7 +53,7 @@ func (s *Server) AppendEntries(ctx context.Context, in *pb.AppendEntriesRequest)
 	reply.Term = int32(s.Server.CurrentTerm)
 
 	if in.Term < int32(s.Server.CurrentTerm) {
-		return successReply, nil
+		return failReply, nil
 	}
 
 	if len(in.Entries) == 0 {
