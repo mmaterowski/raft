@@ -43,14 +43,10 @@ func (s *Server) CommitAvailableEntries(ctx context.Context, in *pb.CommitAvaila
 }
 
 func (s *Server) AppendEntries(ctx context.Context, in *pb.AppendEntriesRequest) (*pb.AppendEntriesReply, error) {
-	reply := &pb.AppendEntriesReply{}
-	successReply := reply
-	successReply.Success = true
-	failReply := reply
-	failReply.Success = false
-
-	//current term or what?
-	reply.Term = int32(s.Server.CurrentTerm)
+	//TODO not sure which term should i return
+	term := int32(666)
+	successReply := &pb.AppendEntriesReply{Success: true, Term: term}
+	failReply := &pb.AppendEntriesReply{Success: false, Term: term}
 
 	if in.Term < int32(s.Server.CurrentTerm) {
 		return failReply, nil
@@ -65,18 +61,10 @@ func (s *Server) AppendEntries(ctx context.Context, in *pb.AppendEntriesRequest)
 		return failReply, nil
 	}
 
-	entry, _ := s.Server.Context.GetEntryAtIndex(int(in.PreviousLogIndex))
-	match := lastEntryInLogMatchesWithLeader(entry, int(in.PreviousLogIndex), int(in.PreviousLogTerm))
-	if !match {
-		return failReply, nil
-	}
-
 	if in.PreviousLogIndex != 0 {
-		entry, err := s.Server.Context.GetEntryAtIndex(int(in.PreviousLogIndex))
-		if err != nil {
-			log.Println("Follower is missing last entry present on Leader. Request:")
-			log.Println(helpers.PrettyPrint(in))
-
+		entry, _ := s.Server.Context.GetEntryAtIndex(int(in.PreviousLogIndex))
+		if (entry == structs.Entry{}) {
+			return failReply, nil
 		}
 
 		if entry.TermNumber != int(in.PreviousLogTerm) {
@@ -114,23 +102,6 @@ func (s *Server) AppendEntries(ctx context.Context, in *pb.AppendEntriesRequest)
 	s.Server.PreviousEntryTerm = lastAppended.TermNumber
 
 	return successReply, nil
-}
-
-func lastEntryInLogMatchesWithLeader(entry structs.Entry, leaderPreviousLogIndex int, leaderPreviousLogTerm int) bool {
-	//TODO Handle no previous logs case
-	if leaderPreviousLogIndex != 0 {
-		if entry == (structs.Entry{}) {
-			log.Println("Follower is missing last entry present on Leader. Request:")
-			return false
-		}
-
-		if entry.TermNumber != int(leaderPreviousLogTerm) {
-			log.Printf("Follower has different term number on the entry with index '%d'. Entry term: '%d', but expected '%d'", leaderPreviousLogIndex, entry.TermNumber, leaderPreviousLogTerm)
-			return false
-		}
-		return true
-	}
-	return true
 }
 
 func mapRaftEntriesToEntries(rpcEntries []*pb.Entry) []structs.Entry {

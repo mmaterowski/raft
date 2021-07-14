@@ -10,7 +10,7 @@ type InMemoryContext struct {
 }
 
 func (c *InMemoryContext) PersistValue(key string, value int, termNumber int) (bool, structs.Entry) {
-	e := structs.Entry{Index: len(c.entries) - 1, Value: value, Key: key, TermNumber: termNumber}
+	e := structs.Entry{Index: len(c.entries), Value: value, Key: key, TermNumber: termNumber}
 	c.entries = append(c.entries, e)
 	return true, e
 }
@@ -21,6 +21,10 @@ func (c *InMemoryContext) PersistValues(entries []structs.Entry) (bool, structs.
 }
 
 func (c InMemoryContext) GetEntryAtIndex(index int) (structs.Entry, error) {
+	if index > len(c.entries) {
+		return structs.Entry{}, nil
+	}
+
 	return c.entries[index], nil
 }
 

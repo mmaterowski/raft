@@ -31,7 +31,6 @@ func (s *Server) StartServer(id string) {
 	s.VotedFor = s.Context.GetVotedFor()
 	s.CurrentTerm = s.Context.GetCurrentTerm()
 	stateRebuilt := s.RebuildStateFromLog()
-	s.Context.PersistValue("d", 23, 20)
 	if !stateRebuilt {
 		log.Panic("Couldn't rebuild state")
 	}
