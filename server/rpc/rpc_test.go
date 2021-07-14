@@ -69,7 +69,7 @@ func TestAppendFailsIfMoreThanOneEntryInRequest(t *testing.T) {
 	}
 }
 
-func TestLastEntryDoesNotMatchWithLeader(t *testing.T) {
+func TestLastEntryFoundButDoesNotMatchWithLeaderTerm(t *testing.T) {
 	inMemContext := persistence.InMemoryContext{}
 	s := Server{}
 	s.Context = persistence.Db{Context: &inMemContext}
@@ -87,6 +87,29 @@ func TestLastEntryDoesNotMatchWithLeader(t *testing.T) {
 	request := pb.AppendEntriesRequest{Term: int32(leaderTerm), Entries: entries, PreviousLogIndex: int32(prevLogIndex), PreviousLogTerm: int32(prevLogTerm)}
 	reply, _ := s.AppendEntries(context.Background(), &request)
 	if reply.Success {
+		t.Errorf("Expected failed reply: %s", reply)
+	}
+}
+
+func TestLastEntryFoundAndMatchesWithLeaderTerm(t *testing.T) {
+	inMemContext := persistence.InMemoryContext{}
+	s := Server{}
+	s.Context = persistence.Db{Context: &inMemContext}
+	inMemContext.SetCurrentTerm(1)
+	inMemContext.PersistValue("A", 2, inMemContext.GetCurrentTerm())
+	inMemContext.PersistValue("B", 3, inMemContext.GetCurrentTerm())
+
+	s.StartServer("TestServ")
+
+	entries := make([]*pb.Entry, 1)
+	entries[0] = &pb.Entry{Index: 2, Value: 10, Key: "z", TermNumber: 10}
+	prevLogIndex := 1
+	prevLogTerm := 1
+	leaderTerm := 32
+
+	request := pb.AppendEntriesRequest{Term: int32(leaderTerm), Entries: entries, PreviousLogIndex: int32(prevLogIndex), PreviousLogTerm: int32(prevLogTerm)}
+	reply, _ := s.AppendEntries(context.Background(), &request)
+	if !reply.Success {
 		t.Errorf("Expected failed reply: %s", reply)
 	}
 }

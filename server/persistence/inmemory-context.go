@@ -21,7 +21,7 @@ func (c *InMemoryContext) PersistValues(entries []structs.Entry) (bool, structs.
 }
 
 func (c InMemoryContext) GetEntryAtIndex(index int) (structs.Entry, error) {
-	if index > len(c.entries) {
+	if index >= len(c.entries) {
 		return structs.Entry{}, nil
 	}
 
