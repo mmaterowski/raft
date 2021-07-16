@@ -2,3 +2,6 @@ Log replication:
 1. Handle multiple entries append
 2. Erro logging, panicking, what to do when persistence fails?
 3. How to test 3 containers and leader / follower logic?
+
+Docker: 
+go build still super slow because of some external package, god knows what's going on

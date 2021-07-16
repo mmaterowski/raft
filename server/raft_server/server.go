@@ -19,7 +19,7 @@ type Server struct {
 	CommitIndex        int
 	Id                 string
 	VotedFor           string
-	Context
+	AppRepository
 }
 
 func (s *Server) StartServer(id string) {
@@ -30,8 +30,8 @@ func (s *Server) StartServer(id string) {
 	s.PreviousEntryTerm = -1
 	s.CommitIndex = -1
 	log.Print("Starting server...")
-	s.VotedFor, _ = s.Context.GetVotedFor(context.Background())
-	s.CurrentTerm, _ = s.Context.GetCurrentTerm(context.Background())
+	s.VotedFor, _ = s.AppRepository.GetVotedFor(context.Background())
+	s.CurrentTerm, _ = s.AppRepository.GetCurrentTerm(context.Background())
 	stateRebuilt := s.RebuildStateFromLog()
 	if !stateRebuilt {
 		log.Panic("Couldn't rebuild state")
@@ -42,7 +42,7 @@ func (s *Server) StartServer(id string) {
 }
 
 func (s Server) RebuildStateFromLog() bool {
-	entries, _ := s.Context.GetLog(context.Background())
+	entries, _ := s.AppRepository.GetLog(context.Background())
 	for _, entry := range *entries {
 		s.State[entry.Key] = entry
 	}

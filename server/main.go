@@ -15,7 +15,7 @@ import (
 	"google.golang.org/grpc"
 )
 
-var debug = false
+var debug = true
 
 func main() {
 	helpers.PrintAsciiHelloString()
@@ -29,7 +29,8 @@ func main() {
 	}
 
 	db := persistence.NewDb(debug)
-	server := raft.Server{Context: &db}
+
+	server := raft.Server{AppRepository: &db}
 	server.StartServer(serverId)
 	api.IdentifyServer(server.Id, debug)
 
@@ -42,8 +43,11 @@ func main() {
 		client := rpc.Client{}
 		client.SetupRpcClient(server.Id)
 	}()
-
-	api.HandleRequests()
+	port := os.Getenv("SERVER_PORT")
+	if debug {
+		port = "6969"
+	}
+	api.HandleRequests(port)
 
 }
 

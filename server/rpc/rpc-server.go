@@ -63,14 +63,14 @@ func (s *Server) AppendEntries(ctx context.Context, in *pb.AppendEntriesRequest)
 	}
 
 	if in.PreviousLogIndex != 0 {
-		entry, err := s.Server.Context.GetEntryAtIndex(ctx, int(in.PreviousLogIndex))
+		entry, err := s.Server.AppRepository.GetEntryAtIndex(ctx, int(in.PreviousLogIndex))
 		if entry.IsEmpty() {
 			log.Print(err)
 			return failReply, nil
 		}
 
 		if entry.TermNumber != int(in.PreviousLogTerm) {
-			err := s.Server.Context.DeleteAllEntriesStartingFrom(ctx, int(in.PreviousLogIndex))
+			err := s.Server.AppRepository.DeleteAllEntriesStartingFrom(ctx, int(in.PreviousLogIndex))
 			if err != nil {
 				log.Panic("Found conflicting entry, but couldn't delete. That's bad, I panic")
 			}
@@ -83,13 +83,13 @@ func (s *Server) AppendEntries(ctx context.Context, in *pb.AppendEntriesRequest)
 	entries := mapRaftEntriesToEntries(in.Entries)
 
 	//Do I really have to check it every time, or consistency check does this for me?
-	entry, _ := s.Server.Context.GetEntryAtIndex(ctx, entries[0].Index)
+	entry, _ := s.Server.AppRepository.GetEntryAtIndex(ctx, entries[0].Index)
 	if !entry.IsEmpty() {
 		log.Printf("Tried to append entry that already exists.")
 		return failReply, nil
 	}
 
-	lastAppendedEntry, err := s.Server.Context.PersistValues(ctx, entries)
+	lastAppendedEntry, err := s.Server.AppRepository.PersistValues(ctx, entries)
 
 	if err != nil {
 		log.Printf("Unexpected error. Failed to persist entries")

@@ -11,7 +11,7 @@ type Setup interface {
 	Setup()
 }
 
-type Context interface {
+type AppRepository interface {
 	PersistValue(ctx context.Context, key string, value int, termNumber int) (*entry.Entry, error)
 	PersistValues(ctx context.Context, entries []entry.Entry) (*entry.Entry, error)
 	GetEntryAtIndex(ctx context.Context, index int) (*entry.Entry, error)
@@ -25,7 +25,7 @@ type Context interface {
 }
 
 type Db struct {
-	Context
+	AppRepository
 	Path string
 }
 
@@ -34,9 +34,15 @@ func NewDb(debug bool) Db {
 	if debug {
 		dbPath = "./log.db"
 	}
-	context, err := NewSqlLiteRepository(dbPath)
-	helpers.Check(err)
+	db := Db{}
+	if debug {
+		db.AppRepository = &InMemoryContext{}
+	} else {
+		context, err := NewSqlLiteRepository(dbPath)
+		helpers.Check(err)
 
-	db := Db{Path: dbPath, Context: context}
+		db = Db{Path: dbPath, AppRepository: context}
+	}
+
 	return db
 }

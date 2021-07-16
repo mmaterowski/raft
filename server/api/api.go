@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"os"
 	"strconv"
 	"sync"
 
@@ -85,7 +84,7 @@ func AcceptLogEntry(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	key, value, err := getKeyAndValue(r)
 	Check(err)
-	entry, _ := RaftServerReference.Context.PersistValue(r.Context(), key, value, RaftServerReference.CurrentTerm)
+	entry, _ := RaftServerReference.AppRepository.PersistValue(r.Context(), key, value, RaftServerReference.CurrentTerm)
 	if !entry.IsEmpty() {
 		respond.With(w, r, http.StatusOK, PutResponse{Success: false})
 		return
@@ -144,7 +143,7 @@ func orderFollowersToCommitTheirEntries() {
 
 func makeSureLastEntryDataIsAvailable(ctx context.Context) {
 	if RaftServerReference.PreviousEntryIndex < 0 || RaftServerReference.PreviousEntryTerm < 0 {
-		entry, _ := RaftServerReference.Context.GetLastEntry(ctx)
+		entry, _ := RaftServerReference.AppRepository.GetLastEntry(ctx)
 		if entry.IsEmpty() {
 			RaftServerReference.PreviousEntryIndex = entry.Index
 			RaftServerReference.PreviousEntryTerm = entry.TermNumber
@@ -176,16 +175,16 @@ func getKeyAndValue(r *http.Request) (string, int, error) {
 
 func home(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "Raft module! RaftServerReference: "+RaftServerReference.Id)
+	respond.With(w, r, http.StatusOK, "It's cool bro")
 }
 
-func HandleRequests() {
+func HandleRequests(port string) {
 	r := mux.NewRouter()
 	http.Handle("/", r)
 	r.HandleFunc("/", home)
 	r.HandleFunc("/status", GetStatus)
 	r.HandleFunc("/get/{key}", GetKeyValue)
 	r.HandleFunc("/put/{key}/{value}", AcceptLogEntry)
-	port := os.Getenv("SERVER_PORT")
 	log.Printf("API listens on %s", port)
 	log.Fatal(http.ListenAndServe(":"+port, nil))
 }

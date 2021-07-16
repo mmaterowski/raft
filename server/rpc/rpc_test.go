@@ -11,7 +11,7 @@ import (
 func TestAppendFailsIfLeadersTermLowerThanCurrentTerm(t *testing.T) {
 	inMemContext := persistence.InMemoryContext{}
 	s := Server{}
-	s.Context = persistence.Db{Context: &inMemContext}
+	s.AppRepository = persistence.Db{AppRepository: &inMemContext}
 
 	inMemContext.SetCurrentTerm(context.Background(), 10)
 
@@ -27,7 +27,7 @@ func TestAppendFailsIfLeadersTermLowerThanCurrentTerm(t *testing.T) {
 func TestAppendSuccessIfLeadersTermHigherThanCurrentTerm(t *testing.T) {
 	inMemContext := persistence.InMemoryContext{}
 	s := Server{}
-	s.Context = persistence.Db{Context: &inMemContext}
+	s.AppRepository = persistence.Db{AppRepository: &inMemContext}
 
 	inMemContext.SetCurrentTerm(context.Background(), 1)
 
@@ -43,7 +43,7 @@ func TestAppendSuccessIfLeadersTermHigherThanCurrentTerm(t *testing.T) {
 func TestAppendSuccessIfNoEntriesToAppend(t *testing.T) {
 	inMemContext := persistence.InMemoryContext{}
 	s := Server{}
-	s.Context = persistence.Db{Context: &inMemContext}
+	s.AppRepository = persistence.Db{AppRepository: &inMemContext}
 	inMemContext.SetCurrentTerm(context.Background(), 1)
 
 	s.StartServer("TestServ")
@@ -58,7 +58,7 @@ func TestAppendSuccessIfNoEntriesToAppend(t *testing.T) {
 func TestAppendFailsIfMoreThanOneEntryInRequest(t *testing.T) {
 	inMemContext := persistence.InMemoryContext{}
 	s := Server{}
-	s.Context = persistence.Db{Context: &inMemContext}
+	s.AppRepository = persistence.Db{AppRepository: &inMemContext}
 	inMemContext.SetCurrentTerm(context.Background(), 1)
 	s.StartServer("TestServ")
 	entries := make([]*pb.Entry, 2)
@@ -72,7 +72,7 @@ func TestAppendFailsIfMoreThanOneEntryInRequest(t *testing.T) {
 func TestLastEntryFoundButDoesNotMatchWithLeaderTerm(t *testing.T) {
 	inMemContext := persistence.InMemoryContext{}
 	s := Server{}
-	s.Context = persistence.Db{Context: &inMemContext}
+	s.AppRepository = persistence.Db{AppRepository: &inMemContext}
 	crrentTerm, _ := inMemContext.GetCurrentTerm(context.Background())
 	inMemContext.SetCurrentTerm(context.Background(), 1)
 	inMemContext.PersistValue(context.Background(), "A", 2, crrentTerm)
@@ -95,7 +95,7 @@ func TestLastEntryFoundButDoesNotMatchWithLeaderTerm(t *testing.T) {
 func TestLastEntryFoundAndMatchesWithLeaderTerm(t *testing.T) {
 	inMemContext := persistence.InMemoryContext{}
 	s := Server{}
-	s.Context = persistence.Db{Context: &inMemContext}
+	s.AppRepository = persistence.Db{AppRepository: &inMemContext}
 	inMemContext.SetCurrentTerm(context.Background(), 1)
 	crrentTerm, _ := inMemContext.GetCurrentTerm(context.Background())
 
@@ -120,7 +120,7 @@ func TestLastEntryFoundAndMatchesWithLeaderTerm(t *testing.T) {
 func TestLastEntryOnFollowerDoesNotExist(t *testing.T) {
 	inMemContext := persistence.InMemoryContext{}
 	s := Server{}
-	s.Context = persistence.Db{Context: &inMemContext}
+	s.AppRepository = persistence.Db{AppRepository: &inMemContext}
 	inMemContext.SetCurrentTerm(context.Background(), 1)
 	crrentTerm, _ := inMemContext.GetCurrentTerm(context.Background())
 
