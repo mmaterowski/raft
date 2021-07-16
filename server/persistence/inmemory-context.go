@@ -1,6 +1,8 @@
 package persistence
 
 import (
+	"context"
+
 	"github.com/mmaterowski/raft/entry"
 )
 
@@ -11,52 +13,53 @@ type InMemoryContext struct {
 	votedFor    string
 }
 
-func (c *InMemoryContext) PersistValue(key string, value int, termNumber int) (bool, entry.Entry) {
+func (c *InMemoryContext) PersistValue(ctx context.Context, key string, value int, termNumber int) (*entry.Entry, error) {
 	e := entry.Entry{Index: len(c.entries), Value: value, Key: key, TermNumber: termNumber}
 	c.entries = append(c.entries, e)
-	return true, e
+	return &e, nil
 }
 
-func (c *InMemoryContext) PersistValues(entries []entry.Entry) (bool, entry.Entry) {
+func (c *InMemoryContext) PersistValues(ctx context.Context, entries []entry.Entry) (*entry.Entry, error) {
 	c.entries = append(c.entries, entries...)
-	return true, entries[len(entries)-1]
+	return &entries[len(entries)-1], nil
 }
 
-func (c InMemoryContext) GetEntryAtIndex(index int) (entry.Entry, error) {
+func (c InMemoryContext) GetEntryAtIndex(ctx context.Context, index int) (*entry.Entry, error) {
 	if index >= len(c.entries) {
-		return entry.Entry{}, nil
+		return &entry.Entry{}, nil
 	}
 
-	return c.entries[index], nil
+	return &c.entries[index], nil
 }
 
-func (c InMemoryContext) GetLastEntry() entry.Entry {
-	return c.entries[len(c.entries)-1]
+func (c InMemoryContext) GetLastEntry(ctx context.Context) (*entry.Entry, error) {
+	return &c.entries[len(c.entries)-1], nil
 }
 
-func (c InMemoryContext) GetCurrentTerm() int {
-	return c.currentTerm
+func (c InMemoryContext) GetCurrentTerm(ctx context.Context) (int, error) {
+	return c.currentTerm, nil
 }
 
-func (c InMemoryContext) GetVotedFor() string {
-	return c.votedFor
+func (c InMemoryContext) GetVotedFor(ctx context.Context) (string, error) {
+	return c.votedFor, nil
 }
 
-func (c *InMemoryContext) SetCurrentTerm(currentTerm int) bool {
+func (c *InMemoryContext) SetCurrentTerm(ctx context.Context, currentTerm int) error {
 	c.currentTerm = currentTerm
-	return true
+	return nil
 }
 
-func (c *InMemoryContext) SetVotedFor(votedForId string) bool {
+func (c *InMemoryContext) SetVotedFor(ctx context.Context, votedForId string) error {
 	c.votedFor = votedForId
-	return true
+	return nil
 }
 
-func (c InMemoryContext) GetLog() []entry.Entry {
-	return c.entries
+func (c InMemoryContext) GetLog(ctx context.Context) (*[]entry.Entry, error) {
+	return &c.entries, nil
 }
 
-func (c *InMemoryContext) DeleteAllEntriesStartingFrom(index int) bool {
+func (c *InMemoryContext) DeleteAllEntriesStartingFrom(ctx context.Context, index int) error {
 	c.entries = c.entries[index:len(c.entries)]
-	return true
+	return nil
+
 }

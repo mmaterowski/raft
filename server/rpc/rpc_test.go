@@ -13,7 +13,7 @@ func TestAppendFailsIfLeadersTermLowerThanCurrentTerm(t *testing.T) {
 	s := Server{}
 	s.Context = persistence.Db{Context: &inMemContext}
 
-	inMemContext.SetCurrentTerm(10)
+	inMemContext.SetCurrentTerm(context.Background(), 10)
 
 	s.StartServer("TestServ")
 
@@ -29,7 +29,7 @@ func TestAppendSuccessIfLeadersTermHigherThanCurrentTerm(t *testing.T) {
 	s := Server{}
 	s.Context = persistence.Db{Context: &inMemContext}
 
-	inMemContext.SetCurrentTerm(1)
+	inMemContext.SetCurrentTerm(context.Background(), 1)
 
 	s.StartServer("TestServ")
 
@@ -44,7 +44,7 @@ func TestAppendSuccessIfNoEntriesToAppend(t *testing.T) {
 	inMemContext := persistence.InMemoryContext{}
 	s := Server{}
 	s.Context = persistence.Db{Context: &inMemContext}
-	inMemContext.SetCurrentTerm(1)
+	inMemContext.SetCurrentTerm(context.Background(), 1)
 
 	s.StartServer("TestServ")
 
@@ -59,7 +59,7 @@ func TestAppendFailsIfMoreThanOneEntryInRequest(t *testing.T) {
 	inMemContext := persistence.InMemoryContext{}
 	s := Server{}
 	s.Context = persistence.Db{Context: &inMemContext}
-	inMemContext.SetCurrentTerm(1)
+	inMemContext.SetCurrentTerm(context.Background(), 1)
 	s.StartServer("TestServ")
 	entries := make([]*pb.Entry, 2)
 	request := pb.AppendEntriesRequest{Term: 10, Entries: entries}
@@ -73,9 +73,10 @@ func TestLastEntryFoundButDoesNotMatchWithLeaderTerm(t *testing.T) {
 	inMemContext := persistence.InMemoryContext{}
 	s := Server{}
 	s.Context = persistence.Db{Context: &inMemContext}
-	inMemContext.SetCurrentTerm(1)
-	inMemContext.PersistValue("A", 2, inMemContext.GetCurrentTerm())
-	inMemContext.PersistValue("B", 3, inMemContext.GetCurrentTerm())
+	crrentTerm, _ := inMemContext.GetCurrentTerm(context.Background())
+	inMemContext.SetCurrentTerm(context.Background(), 1)
+	inMemContext.PersistValue(context.Background(), "A", 2, crrentTerm)
+	inMemContext.PersistValue(context.Background(), "B", 3, crrentTerm)
 
 	s.StartServer("TestServ")
 
@@ -95,9 +96,11 @@ func TestLastEntryFoundAndMatchesWithLeaderTerm(t *testing.T) {
 	inMemContext := persistence.InMemoryContext{}
 	s := Server{}
 	s.Context = persistence.Db{Context: &inMemContext}
-	inMemContext.SetCurrentTerm(1)
-	inMemContext.PersistValue("A", 2, inMemContext.GetCurrentTerm())
-	inMemContext.PersistValue("B", 3, inMemContext.GetCurrentTerm())
+	inMemContext.SetCurrentTerm(context.Background(), 1)
+	crrentTerm, _ := inMemContext.GetCurrentTerm(context.Background())
+
+	inMemContext.PersistValue(context.Background(), "A", 2, crrentTerm)
+	inMemContext.PersistValue(context.Background(), "B", 3, crrentTerm)
 
 	s.StartServer("TestServ")
 
@@ -118,9 +121,11 @@ func TestLastEntryOnFollowerDoesNotExist(t *testing.T) {
 	inMemContext := persistence.InMemoryContext{}
 	s := Server{}
 	s.Context = persistence.Db{Context: &inMemContext}
-	inMemContext.SetCurrentTerm(1)
-	inMemContext.PersistValue("A", 2, inMemContext.GetCurrentTerm())
-	inMemContext.PersistValue("B", 3, inMemContext.GetCurrentTerm())
+	inMemContext.SetCurrentTerm(context.Background(), 1)
+	crrentTerm, _ := inMemContext.GetCurrentTerm(context.Background())
+
+	inMemContext.PersistValue(context.Background(), "A", 2, crrentTerm)
+	inMemContext.PersistValue(context.Background(), "B", 3, crrentTerm)
 
 	s.StartServer("TestServ")
 

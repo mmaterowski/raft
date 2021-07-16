@@ -84,7 +84,7 @@ func (s *Server) AppendEntries(ctx context.Context, in *pb.AppendEntriesRequest)
 
 	//Do I really have to check it every time, or consistency check does this for me?
 	entry, _ := s.Server.Context.GetEntryAtIndex(ctx, entries[0].Index)
-	if entry.IsEmpty() {
+	if !entry.IsEmpty() {
 		log.Printf("Tried to append entry that already exists.")
 		return failReply, nil
 	}
