@@ -1,5 +1,4 @@
-1 Logic for appneding entry success/fail
-2. Learn about &,*,slices mappings more go concepts
-3. Find testing framework and test stuff up
-5. Handle multiple entries append
-4. Election timer
+Log replication:
+1. Handle multiple entries append
+2. Erro logging, panicking, what to do when persistence fails?
+3. How to test 3 containers and leader / follower logic?

@@ -80,7 +80,7 @@ func (s *Server) AppendEntries(ctx context.Context, in *pb.AppendEntriesRequest)
 
 	entries := mapRaftEntriesToEntries(in.Entries)
 
-	//Do I really have to check it every time?
+	//Do I really have to check it every time, or consistency check does this for me?
 	entryExists, _ := s.Server.Context.GetEntryAtIndex(entries[0].Index)
 	if entryExists != (structs.Entry{}) {
 		log.Printf("Tried to append entry that already exists.")

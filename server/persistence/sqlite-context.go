@@ -1,184 +1,233 @@
 package persistence
 
 import (
+	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"log"
 	"strconv"
 	"strings"
 
-	helpers "github.com/mmaterowski/raft/helpers"
-	structs "github.com/mmaterowski/raft/structs"
+	"github.com/mmaterowski/raft/entry"
+	"github.com/mmaterowski/raft/guard"
 )
 
-type SqlLiteDbContext struct {
+type SqlLiteRepository struct {
 	Context,
 	handle *sql.DB
 	uniqueEntryId string
 }
 
-func NewSqlLiteDbContext(dbPath string) SqlLiteDbContext {
-	sqlContext := SqlLiteDbContext{uniqueEntryId: "ee9fdd8ac5b44fe5866e99bfc9e35932"}
+var (
+	ErrCantConnect             = errors.New("error connecting to SQL")
+	ErrDbNotInitialized        = errors.New("db not initialized properly")
+	ErrTermNumberLowerThanZero = errors.New("cannot create entry with term number lower than zero")
+	ErrNoRowsUpdated           = errors.New("no rows were updated")
+	ErrCouldNotReconstructLog  = errors.New("couldnt reconstruct log. Probably there's invalid entry in log")
+	ErrInvalidArgument         = errors.New("argument passed to method was invalid")
+)
 
-	connected := sqlContext.setDbHandle(dbPath)
+func NewSqlLiteRepository(dbPath string) (SqlLiteRepository, error) {
+	repo := SqlLiteRepository{uniqueEntryId: "ee9fdd8ac5b44fe5866e99bfc9e35932"}
+	connected := repo.setDbHandle(dbPath)
 
 	if !connected {
-		log.Panic("Error connecting to SQL")
+		return SqlLiteRepository{}, ErrCantConnect
 	}
-	success := sqlContext.initTablesIfNeeded()
+
+	success := repo.initTablesIfNeeded()
 
 	if !success {
-		log.Panic("Db not initialized properly")
+		return SqlLiteRepository{}, ErrDbNotInitialized
 	}
 
-	return sqlContext
+	return repo, nil
 }
 
-func (db SqlLiteDbContext) PersistValue(key string, value int, termNumber int) (bool, structs.Entry) {
-	var entry structs.Entry
-	statement, _ := db.handle.Prepare("INSERT INTO Entries (Value, Key, TermNumber) VALUES (?, ?, ?)")
-	success, result := executeSafely(statement, value, key, termNumber)
+func (s SqlLiteRepository) PersistValue(ctx context.Context, key string, value int, termNumber int) (*entry.Entry, error) {
+	insertStatement, _ := s.handle.Prepare("INSERT INTO Entries (Value, Key, TermNumber) VALUES (?, ?, ?)")
+	insertResult, err := insertStatement.Exec(value, key, termNumber)
 
-	if !success {
-		return false, entry
+	if err != nil {
+		return nil, err
 	}
 
-	if result != nil {
-		resultId, _ := result.LastInsertId()
-		previousEntryIndex := int(resultId)
-		entry = structs.Entry{Index: previousEntryIndex, Value: value, Key: key, TermNumber: termNumber}
+	lastInsertedId, err := insertResult.LastInsertId()
+	if guard.AgainstNegativeValue(int(lastInsertedId)) {
+		return &entry.Entry{}, err
 	}
 
-	return success, entry
+	entry, createErr := entry.New(int(lastInsertedId), value, termNumber, key)
+	return entry, createErr
 }
 
-func (db SqlLiteDbContext) PersistValues(entries []structs.Entry) (bool, structs.Entry) {
+func (s SqlLiteRepository) PersistValues(ctx context.Context, entries []entry.Entry) (*entry.Entry, error) {
 	if len(entries) == 0 {
-		return true, structs.Entry{}
+		return &entry.Entry{}, nil
 	}
 
-	var lastEntry structs.Entry = entries[len(entries)-1]
 	insert := "INSERT INTO Entries (Value, Key, TermNumber) VALUES "
 	for _, entry := range entries {
 		insert += fmt.Sprintf(`(%d,"%s",%d),`, entry.Value, entry.Key, entry.TermNumber)
 	}
 	insert = strings.TrimSuffix(insert, ",")
-	statement, _ := db.handle.Prepare(insert)
+	statement, _ := s.handle.Prepare(insert)
+	insertResult, err := statement.Exec()
 
-	success, result := executeSafely(statement)
-
-	if !success {
-		return false, lastEntry
-	}
-
-	if result != nil {
-		resultId, _ := result.LastInsertId()
-		index := int(resultId)
-		lastEntry = structs.Entry{Index: index, Value: lastEntry.Value, Key: lastEntry.Key, TermNumber: lastEntry.TermNumber}
-
-	}
-
-	return success, lastEntry
-}
-
-func (db SqlLiteDbContext) GetEntryAtIndex(index int) (structs.Entry, error) {
-	selectStatement := fmt.Sprintf(`SELECT * FROM Entries WHERE "Index"=%d`, index)
-	var entry structs.Entry
-	err := db.handle.QueryRow(selectStatement).Scan(&entry.Index, &entry.Value, &entry.Key, &entry.TermNumber)
 	if err != nil {
-		log.Println(err)
+		return &entry.Entry{}, err
 	}
-	return entry, err
+
+	lastEntryId, _ := insertResult.LastInsertId()
+	lastEntry := entries[len(entries)-1]
+	return entry.New(int(lastEntryId), lastEntry.Value, lastEntry.TermNumber, lastEntry.Key)
 }
 
-func (db SqlLiteDbContext) GetLastEntry() structs.Entry {
+func (db SqlLiteRepository) GetEntryAtIndex(ctx context.Context, index int) (*entry.Entry, error) {
+	if guard.AgainstNegativeValue(index) {
+		return &entry.Entry{}, ErrInvalidArgument
+	}
+
+	selectStatement := fmt.Sprintf(`SELECT * FROM Entries WHERE "Index"=%d`, index)
+	var createdIndex, value, term int
+	var key string
+	err := db.handle.QueryRow(selectStatement).Scan(createdIndex, value, key, term)
+	if err != nil {
+		return &entry.Entry{}, err
+	}
+	return entry.New(createdIndex, value, term, key)
+}
+
+func (db SqlLiteRepository) GetLastEntry(ctx context.Context) (*entry.Entry, error) {
 	selectStatement := `SELECT* FROM Entries WHERE "Index"=(SELECT MAX("Index") FROM Entries)`
-	var entry structs.Entry
-	err := db.handle.QueryRow(selectStatement).Scan(&entry.Index, &entry.Value, &entry.Key, &entry.TermNumber)
-	helpers.Check(err)
-	return entry
+	var createdIndex, value, term int
+	var key string
+	err := db.handle.QueryRow(selectStatement).Scan(createdIndex, value, key, term)
+	if err != nil {
+		return &entry.Entry{}, err
+	}
+	return entry.New(createdIndex, value, term, key)
 }
 
-func (db SqlLiteDbContext) GetCurrentTerm() int {
+func (db SqlLiteRepository) GetCurrentTerm(ctx context.Context) (int, error) {
 	selectStatement := fmt.Sprintf(`SELECT CurrentTerm FROM Term WHERE "UniqueEntryId"="%s"`, db.uniqueEntryId)
 	currentTermNumber := 0
 	sqlRes := ""
 
 	err := db.handle.QueryRow(selectStatement).Scan(&sqlRes)
 	if err != nil {
-		log.Printf("%s", err.Error())
-		return currentTermNumber
+		return currentTermNumber, err
 	}
 
 	currentTermNumber, convError := strconv.Atoi(sqlRes)
 	if convError != nil {
-		log.Print(convError)
-		return currentTermNumber
+		return currentTermNumber, convError
 	}
 
-	return currentTermNumber
+	return currentTermNumber, nil
 }
 
-func (db SqlLiteDbContext) SetCurrentTerm(currentTerm int) bool {
+func (db SqlLiteRepository) SetCurrentTerm(ctx context.Context, currentTerm int) error {
+	if guard.AgainstNegativeValue(currentTerm) {
+		return ErrInvalidArgument
+	}
+
 	insertStatement := fmt.Sprintf(`UPDATE Term SET CurrentTerm="%d" WHERE UniqueEntryId="%s"`, currentTerm, db.uniqueEntryId)
 	statement, _ := db.handle.Prepare(insertStatement)
-	success, _ := executeSafely(statement)
-	return success
+	sqlRes, err := statement.Exec()
+	if err != nil {
+		return err
+	}
+
+	if atLeastOneRowWasUpdated(sqlRes) {
+		return ErrNoRowsUpdated
+	}
+
+	return nil
 }
 
-func (db SqlLiteDbContext) GetVotedFor() string {
+func (db SqlLiteRepository) GetVotedFor(ctx context.Context) (string, error) {
 	selectStatement := fmt.Sprintf(`SELECT VotedForId FROM VotedFor WHERE "UniqueEntryId"="%s"`, db.uniqueEntryId)
 	foundId := ""
 	err := db.handle.QueryRow(selectStatement).Scan(&foundId)
 	if err != nil {
-		log.Printf("%s", err.Error())
-		return foundId
+		return foundId, err
 	}
-	return foundId
+	return foundId, nil
 }
 
-func (db SqlLiteDbContext) SetVotedFor(votedForId string) bool {
+func (db SqlLiteRepository) SetVotedFor(ctx context.Context, votedForId string) error {
+	if guard.AgainstEmptyString(votedForId) {
+		return ErrInvalidArgument
+	}
+
 	insertStatement := fmt.Sprintf(`UPDATE VotedFor SET VotedForId="%s" WHERE UniqueEntryId="%s"`, votedForId, db.uniqueEntryId)
 	statement, _ := db.handle.Prepare(insertStatement)
-	success, _ := executeSafely(statement)
-	return success
+	sqlRes, err := statement.Exec()
+	if err != nil {
+		return err
+	}
+
+	if atLeastOneRowWasUpdated(sqlRes) {
+		return ErrNoRowsUpdated
+	}
+
+	return nil
 }
 
-func (db SqlLiteDbContext) GetLog() []structs.Entry {
+func (db SqlLiteRepository) GetLog(ctx context.Context) (*[]entry.Entry, error) {
 	selectStatement := `SELECT * FROM Entries ORDER BY "Index"`
 	rows, err := db.handle.Query(selectStatement)
-	helpers.Check(err)
-	entries := []structs.Entry{}
-	for rows.Next() {
-		var entry structs.Entry
-		err = rows.Scan(&entry.Index, &entry.Value, &entry.Key, &entry.TermNumber)
-		helpers.Check(err)
-		entries = append(entries, entry)
+	if err != nil {
+		return &[]entry.Entry{}, nil
 	}
-	return entries
+
+	entries := []entry.Entry{}
+	couldntReconstructLog := false
+	for rows.Next() {
+		var index, value, term int
+		var key string
+		err = rows.Scan(index, value, key, term)
+		if err != nil {
+			log.Print(err)
+			couldntReconstructLog = true
+			break
+		}
+		entry, createError := entry.New(index, value, term, key)
+		if createError != nil {
+			couldntReconstructLog = true
+			break
+		}
+		entries = append(entries, *entry)
+	}
+
+	if couldntReconstructLog {
+		return &[]entry.Entry{}, ErrCouldNotReconstructLog
+	}
+
+	return &entries, nil
 }
 
-func (db SqlLiteDbContext) DeleteAllEntriesStartingFrom(index int) bool {
+func (db SqlLiteRepository) DeleteAllEntriesStartingFrom(ctx context.Context, index int) error {
+	if guard.AgainstNegativeValue(index) {
+		return ErrInvalidArgument
+	}
+
 	insert := fmt.Sprintf("DELETE FROM Entries Where Index >= '%d'", index)
 	statement, _ := db.handle.Prepare(insert)
-	success, _ := executeSafely(statement)
-	return success
+	_, err := statement.Exec()
+	return err
 }
 
-func executeSafely(sqlStatement *sql.Stmt, args ...interface{}) (bool, sql.Result) {
-	if args != nil {
-		result, errWithArgs := sqlStatement.Exec(args...)
-		if errWithArgs != nil {
-			log.Print(errWithArgs)
-			return false, result
-
-		}
-		return true, result
-	}
-	result, err := sqlStatement.Exec()
+func atLeastOneRowWasUpdated(result sql.Result) bool {
+	rowsAffected, err := result.RowsAffected()
 	if err != nil {
 		log.Print(err)
-		return false, result
+		return false
 	}
-	return true, result
+	if int(rowsAffected) <= 0 {
+		return false
+	}
+	return true
 }

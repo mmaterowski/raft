@@ -94,8 +94,8 @@ func AcceptLogEntry(w http.ResponseWriter, r *http.Request) {
 	entries := []*raft_rpc.Entry{}
 	entries = append(entries, &pb.Entry{Index: int32(entry.Index), Value: int32(entry.Value), Key: entry.Key, TermNumber: int32(entry.TermNumber)})
 	makeSureLastEntryDataIsAvailable()
-	//blocking call
-	orderFollowersToAppendEntries(entries)
+	orderFollowersToSyncTheirLog(entries)
+
 	RaftServerReference.State[entry.Key] = entry
 	RaftServerReference.CommitIndex = entry.Index
 
@@ -105,7 +105,7 @@ func AcceptLogEntry(w http.ResponseWriter, r *http.Request) {
 	respond.With(w, r, http.StatusOK, data)
 }
 
-func orderFollowersToAppendEntries(entries []*raft_rpc.Entry) {
+func orderFollowersToSyncTheirLog(entries []*raft_rpc.Entry) {
 	var wg sync.WaitGroup
 
 	wg.Add((len(others) / 2) + 1)
@@ -113,6 +113,15 @@ func orderFollowersToAppendEntries(entries []*raft_rpc.Entry) {
 		go func(leaderId string, previousEntryIndex int, previousEntryTerm int, commitIndex int, otherServer string) {
 			appendEntriesRequest := pb.AppendEntriesRequest{Term: int32(RaftServerReference.CurrentTerm), LeaderId: RaftServerReference.Id, PreviousLogIndex: int32(previousEntryIndex), PreviousLogTerm: int32(previousEntryTerm), Entries: entries, LeaderCommitIndex: int32(commitIndex)}
 			reply, err := RpcClientReference.GetClientFor(otherServer).AppendEntries(context.Background(), &appendEntriesRequest, grpc.EmptyCallOption{})
+			//If the reply unsuccessfull force followers to sync their log
+			//Find matching entry on follower and order it to replace a slice of log so it matches with leader
+
+			//Init next index value with your last matching log
+			//Decrement next index and send previous entry
+			//Question: Maybe that's how you make call with multiple entries? Just send whole slice that increasingly grows
+			// and when it's accepted it's synced
+			//Repeat
+			//Finally it will sync
 
 			Check(err)
 			log.Print(reply.String())
@@ -136,9 +145,14 @@ func orderFollowersToCommitTheirEntries() {
 func makeSureLastEntryDataIsAvailable() {
 	if RaftServerReference.PreviousEntryIndex < 0 || RaftServerReference.PreviousEntryTerm < 0 {
 		entry := RaftServerReference.Context.GetLastEntry()
-		RaftServerReference.PreviousEntryIndex = entry.Index
-		RaftServerReference.PreviousEntryTerm = entry.TermNumber
+		if (entry != structs.Entry{}) {
+			RaftServerReference.PreviousEntryIndex = entry.Index
+			RaftServerReference.PreviousEntryTerm = entry.TermNumber
+		}
+
 	}
+	RaftServerReference.PreviousEntryIndex = 0
+	RaftServerReference.PreviousEntryTerm = 0
 }
 
 func getKeyAndValue(r *http.Request) (string, int, error) {

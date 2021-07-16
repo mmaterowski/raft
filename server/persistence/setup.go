@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-func (s *SqlLiteDbContext) setDbHandle(dbPath string) bool {
+func (s *SqlLiteRepository) setDbHandle(dbPath string) bool {
 
 	handle, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
@@ -19,14 +19,14 @@ func (s *SqlLiteDbContext) setDbHandle(dbPath string) bool {
 	return handle != nil
 }
 
-func (s SqlLiteDbContext) initTablesIfNeeded() bool {
+func (s SqlLiteRepository) initTablesIfNeeded() bool {
 	entriesCreated := s.createEntriesTableIfNotExists()
 	termCreated := s.createTermTableIfNotExists()
 	votedForCreated := s.createVotedForIfNotExists()
 	return entriesCreated && termCreated && votedForCreated
 }
 
-func (s SqlLiteDbContext) createEntriesTableIfNotExists() bool {
+func (s SqlLiteRepository) createEntriesTableIfNotExists() bool {
 	createStatement, err := s.handle.Prepare(`CREATE TABLE IF NOT EXISTS "Entries" (
 		"Index"	INTEGER,
 		"Value"	INTEGER,
@@ -38,12 +38,12 @@ func (s SqlLiteDbContext) createEntriesTableIfNotExists() bool {
 		log.Print(err)
 		return false
 	}
-	success, _ := executeSafely(createStatement)
-	return success
+	_, exceuteError := createStatement.Exec()
+	return exceuteError != nil
 
 }
 
-func (s SqlLiteDbContext) createTermTableIfNotExists() bool {
+func (s SqlLiteRepository) createTermTableIfNotExists() bool {
 	createStatement, err := s.handle.Prepare(`CREATE TABLE IF NOT EXISTS "Term" (
 		"CurrentTerm"	INTEGER
 	, "UniqueEntryId"	TEXT)`)
@@ -51,12 +51,12 @@ func (s SqlLiteDbContext) createTermTableIfNotExists() bool {
 		log.Print(err)
 		return false
 	}
-	success, _ := executeSafely(createStatement)
-	return success
+	_, exceuteError := createStatement.Exec()
+	return exceuteError != nil
 
 }
 
-func (s SqlLiteDbContext) createVotedForIfNotExists() bool {
+func (s SqlLiteRepository) createVotedForIfNotExists() bool {
 	createStatement, err := s.handle.Prepare(`CREATE TABLE IF NOT EXISTS "VotedFor" (
 		"VotedForId"	TEXT,
 		"UniqueEntryId"	TEXT
@@ -64,6 +64,6 @@ func (s SqlLiteDbContext) createVotedForIfNotExists() bool {
 	if err != nil {
 		log.Print(err)
 	}
-	success, _ := executeSafely(createStatement)
-	return success
+	_, exceuteError := createStatement.Exec()
+	return exceuteError != nil
 }
