@@ -85,23 +85,23 @@ func AcceptLogEntry(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	key, value, err := getKeyAndValue(r)
 	Check(err)
-	success, entry := RaftServerReference.Context.PersistValue(key, value, RaftServerReference.CurrentTerm)
-	if !success {
-		respond.With(w, r, http.StatusOK, PutResponse{Success: success})
+	entry, _ := RaftServerReference.Context.PersistValue(r.Context(), key, value, RaftServerReference.CurrentTerm)
+	if !entry.IsEmpty() {
+		respond.With(w, r, http.StatusOK, PutResponse{Success: false})
 		return
 	}
 
 	entries := []*raft_rpc.Entry{}
 	entries = append(entries, &pb.Entry{Index: int32(entry.Index), Value: int32(entry.Value), Key: entry.Key, TermNumber: int32(entry.TermNumber)})
-	makeSureLastEntryDataIsAvailable()
+	makeSureLastEntryDataIsAvailable(r.Context())
 	orderFollowersToSyncTheirLog(entries)
 
-	RaftServerReference.State[entry.Key] = entry
+	RaftServerReference.State[entry.Key] = *entry
 	RaftServerReference.CommitIndex = entry.Index
 
 	orderFollowersToCommitTheirEntries()
 
-	data := PutResponse{Success: success}
+	data := PutResponse{Success: true}
 	respond.With(w, r, http.StatusOK, data)
 }
 
@@ -142,10 +142,10 @@ func orderFollowersToCommitTheirEntries() {
 
 }
 
-func makeSureLastEntryDataIsAvailable() {
+func makeSureLastEntryDataIsAvailable(ctx context.Context) {
 	if RaftServerReference.PreviousEntryIndex < 0 || RaftServerReference.PreviousEntryTerm < 0 {
-		entry := RaftServerReference.Context.GetLastEntry()
-		if (entry != structs.Entry{}) {
+		entry, _ := RaftServerReference.Context.GetLastEntry(ctx)
+		if entry.IsEmpty() {
 			RaftServerReference.PreviousEntryIndex = entry.Index
 			RaftServerReference.PreviousEntryTerm = entry.TermNumber
 		}

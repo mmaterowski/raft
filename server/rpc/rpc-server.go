@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 
+	"github.com/mmaterowski/raft/entry"
 	"github.com/mmaterowski/raft/helpers"
 	pb "github.com/mmaterowski/raft/raft_rpc"
 	s "github.com/mmaterowski/raft/raft_server"
@@ -23,7 +24,7 @@ func (s *Server) CommitAvailableEntries(ctx context.Context, in *pb.CommitAvaila
 	for leaderCommitIndex != s.Server.CommitIndex {
 		//TODO Optimize:Get all entries at once
 		nextEntryIndexToCommit := s.Server.CommitIndex + 1
-		entry, err := s.Server.GetEntryAtIndex(nextEntryIndexToCommit)
+		entry, err := s.Server.GetEntryAtIndex(ctx, nextEntryIndexToCommit)
 		if err != nil {
 			log.Println("Error while commiting state:")
 			log.Println(err)
@@ -34,7 +35,7 @@ func (s *Server) CommitAvailableEntries(ctx context.Context, in *pb.CommitAvaila
 			return &pb.Empty{}, err
 		}
 
-		s.Server.State[entry.Key] = entry
+		s.Server.State[entry.Key] = *entry
 		s.Server.CommitIndex++
 	}
 
@@ -62,14 +63,15 @@ func (s *Server) AppendEntries(ctx context.Context, in *pb.AppendEntriesRequest)
 	}
 
 	if in.PreviousLogIndex != 0 {
-		entry, _ := s.Server.Context.GetEntryAtIndex(int(in.PreviousLogIndex))
-		if (entry == structs.Entry{}) {
+		entry, err := s.Server.Context.GetEntryAtIndex(ctx, int(in.PreviousLogIndex))
+		if entry.IsEmpty() {
+			log.Print(err)
 			return failReply, nil
 		}
 
 		if entry.TermNumber != int(in.PreviousLogTerm) {
-			success := s.Server.Context.DeleteAllEntriesStartingFrom(int(in.PreviousLogIndex))
-			if !success {
+			err := s.Server.Context.DeleteAllEntriesStartingFrom(ctx, int(in.PreviousLogIndex))
+			if err != nil {
 				log.Panic("Found conflicting entry, but couldn't delete. That's bad, I panic")
 			}
 			log.Printf("Follower has different term number on the entry with index '%d'. Entry term: '%d', but expected '%d'", in.PreviousLogIndex, entry.TermNumber, in.PreviousLogTerm)
@@ -81,37 +83,37 @@ func (s *Server) AppendEntries(ctx context.Context, in *pb.AppendEntriesRequest)
 	entries := mapRaftEntriesToEntries(in.Entries)
 
 	//Do I really have to check it every time, or consistency check does this for me?
-	entryExists, _ := s.Server.Context.GetEntryAtIndex(entries[0].Index)
-	if entryExists != (structs.Entry{}) {
+	entry, _ := s.Server.Context.GetEntryAtIndex(ctx, entries[0].Index)
+	if entry.IsEmpty() {
 		log.Printf("Tried to append entry that already exists.")
 		return failReply, nil
 	}
 
-	success, lastAppended := s.Server.Context.PersistValues(entries)
+	lastAppendedEntry, err := s.Server.Context.PersistValues(ctx, entries)
 
-	if !success {
+	if err != nil {
 		log.Printf("Unexpected error. Failed to persist entries")
 		return failReply, nil
 	}
 
 	if in.LeaderCommitIndex > int32(s.Server.CommitIndex) {
-		s.Server.CommitIndex = helpers.Min(int(in.LeaderCommitIndex), lastAppended.TermNumber)
+		s.Server.CommitIndex = helpers.Min(int(in.LeaderCommitIndex), lastAppendedEntry.TermNumber)
 	}
 
-	s.Server.PreviousEntryIndex = lastAppended.Index
-	s.Server.PreviousEntryTerm = lastAppended.TermNumber
+	s.Server.PreviousEntryIndex = lastAppendedEntry.Index
+	s.Server.PreviousEntryTerm = lastAppendedEntry.TermNumber
 
 	return successReply, nil
 }
 
-func mapRaftEntriesToEntries(rpcEntries []*pb.Entry) []structs.Entry {
-	var entries []structs.Entry
+func mapRaftEntriesToEntries(rpcEntries []*pb.Entry) []entry.Entry {
+	var entries []entry.Entry
 	for _, raftEntry := range rpcEntries {
 		entries = append(entries, (getEntryFromRaftEntry(raftEntry)))
 	}
 	return entries
 }
-func getEntryFromRaftEntry(rpcEntry *pb.Entry) structs.Entry {
-	entry := structs.Entry{Key: rpcEntry.Key, Index: int(rpcEntry.Index), Value: int(rpcEntry.Value), TermNumber: int(rpcEntry.TermNumber)}
+func getEntryFromRaftEntry(rpcEntry *pb.Entry) entry.Entry {
+	entry := entry.Entry{Key: rpcEntry.Key, Index: int(rpcEntry.Index), Value: int(rpcEntry.Value), TermNumber: int(rpcEntry.TermNumber)}
 	return entry
 }

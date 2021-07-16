@@ -1,16 +1,18 @@
 package raft_server
 
 import (
+	"context"
 	"log"
 
 	_ "github.com/mattn/go-sqlite3"
+	"github.com/mmaterowski/raft/entry"
 	. "github.com/mmaterowski/raft/persistence"
-	. "github.com/mmaterowski/raft/structs"
+	"github.com/mmaterowski/raft/structs"
 )
 
 type Server struct {
-	ServerType
-	State              map[string]Entry
+	structs.ServerType
+	State              map[string]entry.Entry
 	CurrentTerm        int
 	PreviousEntryIndex int
 	PreviousEntryTerm  int
@@ -22,14 +24,14 @@ type Server struct {
 
 func (s *Server) StartServer(id string) {
 	s.Id = id
-	s.ServerType = ServerType(Candidate)
-	s.State = make(map[string]Entry)
+	s.ServerType = structs.ServerType(structs.Candidate)
+	s.State = make(map[string]entry.Entry)
 	s.PreviousEntryIndex = -1
 	s.PreviousEntryTerm = -1
 	s.CommitIndex = -1
 	log.Print("Starting server...")
-	s.VotedFor = s.Context.GetVotedFor()
-	s.CurrentTerm = s.Context.GetCurrentTerm()
+	s.VotedFor, _ = s.Context.GetVotedFor(context.Background())
+	s.CurrentTerm, _ = s.Context.GetCurrentTerm(context.Background())
 	stateRebuilt := s.RebuildStateFromLog()
 	if !stateRebuilt {
 		log.Panic("Couldn't rebuild state")
@@ -40,8 +42,8 @@ func (s *Server) StartServer(id string) {
 }
 
 func (s Server) RebuildStateFromLog() bool {
-	entries := s.Context.GetLog()
-	for _, entry := range entries {
+	entries, _ := s.Context.GetLog(context.Background())
+	for _, entry := range *entries {
 		s.State[entry.Key] = entry
 	}
 	return true
