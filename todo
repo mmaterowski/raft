@@ -5,3 +5,4 @@ Log replication:
 
 Docker: 
 go build still super slow because of some external package, god knows what's going on
+how to structure and separate docker composes / tests and files

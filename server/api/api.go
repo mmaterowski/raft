@@ -175,7 +175,7 @@ func getKeyAndValue(r *http.Request) (string, int, error) {
 
 func home(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "Raft module! RaftServerReference: "+RaftServerReference.Id)
-	respond.With(w, r, http.StatusOK, "It's cool bro")
+
 }
 
 func HandleRequests(port string) {

@@ -15,24 +15,32 @@ import (
 	"google.golang.org/grpc"
 )
 
-var debug = true
+const (
+	Debug           = "Debug"
+	Integrationtest = "IntegrationTest"
+	Prod            = "Prod"
+)
 
 func main() {
+	env := os.Getenv("ENV")
+	if env == "" {
+		env = "Debug"
+	}
 	helpers.PrintAsciiHelloString()
-
 	serverId := os.Getenv("SERVER_ID")
-	if debug {
+	if env == Debug {
 		serverId = "Kim"
 	}
+
 	if serverId == "" {
 		log.Fatal("Server id not set. Check Your environmental variable 'SERVER_ID'")
 	}
-
-	db := persistence.NewDb(debug)
+	useInMemoryDb := env == Debug || env == Integrationtest
+	db := persistence.NewDb(useInMemoryDb)
 
 	server := raft.Server{AppRepository: &db}
 	server.StartServer(serverId)
-	api.IdentifyServer(server.Id, debug)
+	api.IdentifyServer(server.Id, env == Debug)
 
 	go func() {
 		err := handleRPC()
@@ -44,9 +52,10 @@ func main() {
 		client.SetupRpcClient(server.Id)
 	}()
 	port := os.Getenv("SERVER_PORT")
-	if debug {
+	if env == Debug {
 		port = "6969"
 	}
+	api.RaftServerReference = &server
 	api.HandleRequests(port)
 
 }

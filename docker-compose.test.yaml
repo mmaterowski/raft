@@ -1,0 +1,37 @@
+version: '3'
+services:
+    kim:
+        build: ./server
+        ports:
+          - "6969:6969"
+          - "6960:6960"
+        environment:
+            - SERVER_ID=Kim
+            - SERVER_PORT=6969
+            - ENV=IntegrationTest
+        volumes:
+            - ./db/kim:/data/raft-db    
+    ricky:
+        build: ./server
+        ports:
+            - "6970:6970"
+        expose: 
+            - "6960"
+        environment:
+            - SERVER_ID=Ricky
+            - SERVER_PORT=6970
+            - ENV=IntegrationTest
+        volumes:
+            - ./db/ricky:/data/raft-db       
+    laszlo:
+        build: ./server
+        ports:
+            - "6971:6971"
+        expose: 
+            - "6960"
+        environment:
+            - SERVER_ID=Laszlo
+            - SERVER_PORT=6971
+            - ENV=IntegrationTest
+        volumes:
+            - ./db/laszlo:/data/raft-db    

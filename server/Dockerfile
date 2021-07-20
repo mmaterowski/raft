@@ -11,8 +11,6 @@ WORKDIR /app
 COPY go.mod .
 COPY go.sum .
 RUN go mod download
-RUN go get github.com/mattn/go-sqlite3
-RUN go install github.com/mattn/go-sqlite3
 
 COPY . .
 
@@ -30,6 +28,7 @@ COPY --from=build /raft /raft
 
 EXPOSE 6969
 EXPOSE 6960
+ARG env="Debug"
 
 USER nonroot:nonroot
 

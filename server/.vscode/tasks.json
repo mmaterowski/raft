@@ -62,6 +62,18 @@
                 "-v",
                 "./..."
             ]
-        }
+        },
+        {
+            "command": "go",
+            "type": "process",
+            "label": "go-integration-test",
+            "args": [
+                "test",
+                "--tags=integration",
+                "-v",
+                "./..."
+            ],
+            "isTestCommand": true
+        },
     ]
 }
