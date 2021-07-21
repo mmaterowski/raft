@@ -2,6 +2,7 @@ package persistence
 
 import (
 	"context"
+	"log"
 
 	"github.com/mmaterowski/raft/entry"
 	"github.com/mmaterowski/raft/helpers"
@@ -36,8 +37,10 @@ func NewDb(debug bool) Db {
 	}
 	db := Db{}
 	if debug {
+		log.Print("Using in memory db")
 		db.AppRepository = &InMemoryContext{}
 	} else {
+		log.Print("Using sqllite db")
 		context, err := NewSqlLiteRepository(dbPath)
 		helpers.Check(err)
 

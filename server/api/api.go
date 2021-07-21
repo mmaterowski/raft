@@ -40,10 +40,11 @@ type PutResponse struct {
 	Success bool
 }
 
-func IdentifyServer(serverId string, debug bool) {
+func IdentifyServer(serverId string, local bool) {
 
-	if debug {
+	if local {
 		others = append(others, laszloId, rickyId)
+		return
 	}
 
 	switch serverId {
@@ -85,7 +86,7 @@ func AcceptLogEntry(w http.ResponseWriter, r *http.Request) {
 	key, value, err := getKeyAndValue(r)
 	Check(err)
 	entry, _ := RaftServerReference.AppRepository.PersistValue(r.Context(), key, value, RaftServerReference.CurrentTerm)
-	if !entry.IsEmpty() {
+	if entry.IsEmpty() {
 		respond.With(w, r, http.StatusOK, PutResponse{Success: false})
 		return
 	}
@@ -97,9 +98,7 @@ func AcceptLogEntry(w http.ResponseWriter, r *http.Request) {
 
 	RaftServerReference.State[entry.Key] = *entry
 	RaftServerReference.CommitIndex = entry.Index
-
 	orderFollowersToCommitTheirEntries()
-
 	data := PutResponse{Success: true}
 	respond.With(w, r, http.StatusOK, data)
 }
@@ -111,7 +110,9 @@ func orderFollowersToSyncTheirLog(entries []*raft_rpc.Entry) {
 	for _, otherServer := range others {
 		go func(leaderId string, previousEntryIndex int, previousEntryTerm int, commitIndex int, otherServer string) {
 			appendEntriesRequest := pb.AppendEntriesRequest{Term: int32(RaftServerReference.CurrentTerm), LeaderId: RaftServerReference.Id, PreviousLogIndex: int32(previousEntryIndex), PreviousLogTerm: int32(previousEntryTerm), Entries: entries, LeaderCommitIndex: int32(commitIndex)}
-			reply, err := RpcClientReference.GetClientFor(otherServer).AppendEntries(context.Background(), &appendEntriesRequest, grpc.EmptyCallOption{})
+			client := RpcClientReference.GetClientFor(otherServer)
+			log.Print(client)
+			reply, err := client.AppendEntries(context.Background(), &appendEntriesRequest, grpc.EmptyCallOption{})
 			//If the reply unsuccessfull force followers to sync their log
 			//Find matching entry on follower and order it to replace a slice of log so it matches with leader
 
@@ -179,6 +180,14 @@ func home(w http.ResponseWriter, r *http.Request) {
 }
 
 func HandleRequests(port string) {
+	if RaftServerReference == nil {
+		log.Fatal("No raft server reference set")
+	}
+
+	if RpcClientReference == nil {
+		log.Fatal("No rpc client reference set")
+	}
+
 	r := mux.NewRouter()
 	http.Handle("/", r)
 	r.HandleFunc("/", home)

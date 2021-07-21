@@ -1,6 +1,8 @@
 package rpc
 
 import (
+	"log"
+
 	. "github.com/mmaterowski/raft/helpers"
 	pb "github.com/mmaterowski/raft/raft_rpc"
 	"google.golang.org/grpc"
@@ -55,6 +57,7 @@ func (r *Client) SetupRpcClient(serverId string) {
 		r.setUpSuccessfully = true
 
 	}
+	log.Printf("Raft clients set up succesfully: %t", r.setUpSuccessfully)
 
 }
 

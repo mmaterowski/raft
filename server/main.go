@@ -19,53 +19,55 @@ const (
 	Debug           = "Debug"
 	Integrationtest = "IntegrationTest"
 	Prod            = "Prod"
+	Local           = "Local"
 )
 
 func main() {
 	env := os.Getenv("ENV")
 	if env == "" {
-		env = "Debug"
+		env = "Local"
 	}
+	log.Printf("ENVIRONMENT: %s", env)
 	helpers.PrintAsciiHelloString()
 	serverId := os.Getenv("SERVER_ID")
-	if env == Debug {
+	if env == Local {
 		serverId = "Kim"
 	}
 
 	if serverId == "" {
 		log.Fatal("Server id not set. Check Your environmental variable 'SERVER_ID'")
 	}
-	useInMemoryDb := env == Debug || env == Integrationtest
+	useInMemoryDb := env == Debug || env == Integrationtest || env == Local
 	db := persistence.NewDb(useInMemoryDb)
 
 	server := raft.Server{AppRepository: &db}
 	server.StartServer(serverId)
-	api.IdentifyServer(server.Id, env == Debug)
+	api.IdentifyServer(server.Id, env == Local)
 
 	go func() {
-		err := handleRPC()
+		err := handleRPC(serverId, server)
 		helpers.Check(err)
 	}()
-
+	client := rpc.Client{}
 	go func() {
-		client := rpc.Client{}
 		client.SetupRpcClient(server.Id)
 	}()
 	port := os.Getenv("SERVER_PORT")
-	if env == Debug {
+	if env == Local {
 		port = "6969"
 	}
 	api.RaftServerReference = &server
+	api.RpcClientReference = &client
 	api.HandleRequests(port)
 
 }
 
-func handleRPC() error {
+func handleRPC(serverId string, serverReference raft.Server) error {
 	port := 6960
 	lis, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%d", port))
 	helpers.Check(err)
 	grpcServer := grpc.NewServer()
-	protoBuff.RegisterRaftRpcServer(grpcServer, &rpc.Server{})
-	log.Printf("RPC listening on port: %d", port)
+	protoBuff.RegisterRaftRpcServer(grpcServer, &rpc.Server{Server: serverReference})
+	log.Printf("RPC listening on port: %s", lis.Addr().String())
 	return grpcServer.Serve(lis)
 }
