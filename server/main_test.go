@@ -111,3 +111,42 @@ func TestPutKeyIsReplicatedOnAllMachines(t *testing.T) {
 	}
 
 }
+
+func TestLeaderForcingFollowerToSyncLog(t *testing.T) {
+	key1 := "key1"
+	key2 := "key2"
+	key3 := "key3"
+	outOfSyncKey := "key4"
+	expectedOutOfSyncKeyValue := 10
+	value := 1
+	kimPort := "6969"
+	_, _ = http.Get(fmt.Sprintf("http://localhost:%s/put/%s/%d", kimPort, key1, value))
+	_, _ = http.Get(fmt.Sprintf("http://localhost:%s/put/%s/%d", kimPort, key2, value+1))
+	_, _ = http.Get(fmt.Sprintf("http://localhost:%s/put/%s/%d", kimPort, key3, value+2))
+
+	var r api.ValueResponse
+	getKeyResponse, _ := http.Get(fmt.Sprintf("http://localhost:%s/get/%s", kimPort, key1))
+	err := json.NewDecoder(getKeyResponse.Body).Decode(&r)
+	if err != nil {
+		t.Error("Couldn't read response body")
+	}
+
+	if r.Value != value {
+		t.Errorf("Get request to: %s. Expected %d but got %d", kimPort, value, r.Value)
+	}
+
+	otherPort := "6970"
+	_, _ = http.Get(fmt.Sprintf("http://localhost:%s/backdoor/put/%s/%d", otherPort, outOfSyncKey, value))
+
+	_, _ = http.Get(fmt.Sprintf("http://localhost:%s/put/%s/%d", kimPort, outOfSyncKey, expectedOutOfSyncKeyValue))
+	getKeyResponse, _ = http.Get(fmt.Sprintf("http://localhost:%s/get/%s", otherPort, outOfSyncKey))
+	err = json.NewDecoder(getKeyResponse.Body).Decode(&r)
+	if err != nil {
+		t.Error("Couldn't read response body")
+	}
+
+	if r.Value != expectedOutOfSyncKeyValue {
+		t.Errorf("Get request to: %s. Expected %d but got %d", otherPort, value, r.Value)
+	}
+
+}

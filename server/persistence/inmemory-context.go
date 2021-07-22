@@ -2,6 +2,7 @@ package persistence
 
 import (
 	"context"
+	"log"
 
 	"github.com/mmaterowski/raft/entry"
 )
@@ -21,18 +22,23 @@ func (c *InMemoryContext) PersistValue(ctx context.Context, key string, value in
 
 func (c *InMemoryContext) PersistValues(ctx context.Context, entries []entry.Entry) (*entry.Entry, error) {
 	c.entries = append(c.entries, entries...)
+	log.Print("Persisting new values, new log:", c.entries)
 	return &entries[len(entries)-1], nil
 }
 
 func (c InMemoryContext) GetEntryAtIndex(ctx context.Context, index int) (*entry.Entry, error) {
-	if index >= len(c.entries) {
+	if index >= len(c.entries) || index < 0 {
 		return &entry.Entry{}, nil
 	}
-
+	log.Print("Getting entry at index: ", index)
+	log.Print("Entries: ", c.entries)
 	return &c.entries[index], nil
 }
 
 func (c InMemoryContext) GetLastEntry(ctx context.Context) (*entry.Entry, error) {
+	if len(c.entries) == 0 {
+		return &entry.Entry{}, nil
+	}
 	return &c.entries[len(c.entries)-1], nil
 }
 

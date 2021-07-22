@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net"
@@ -39,7 +40,9 @@ func main() {
 	}
 	useInMemoryDb := env == Debug || env == Integrationtest || env == Local
 	db := persistence.NewDb(useInMemoryDb)
-
+	if useInMemoryDb {
+		db.SetCurrentTerm(context.Background(), 1)
+	}
 	server := raft.Server{AppRepository: &db}
 	server.StartServer(serverId)
 	api.IdentifyServer(server.Id, env == Local)

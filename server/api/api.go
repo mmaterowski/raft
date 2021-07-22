@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"sync"
 
+	"github.com/mmaterowski/raft/helpers"
 	. "github.com/mmaterowski/raft/helpers"
 	"github.com/mmaterowski/raft/raft_rpc"
 	pb "github.com/mmaterowski/raft/raft_rpc"
@@ -65,6 +66,18 @@ func GetStatus(w http.ResponseWriter, r *http.Request) {
 	respond.With(w, r, http.StatusOK, data)
 }
 
+func PersistAndCommitValue(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	key, value, err := getKeyAndValue(r)
+	Check(err)
+	entry, _ := RaftServerReference.AppRepository.PersistValue(r.Context(), key, value, RaftServerReference.CurrentTerm)
+	(*RaftServerReference.State)[entry.Key] = *entry
+	RaftServerReference.CommitIndex = entry.Index
+	data := PutResponse{Success: !entry.IsEmpty()}
+	log.Print("Backdooring entry. Persisted and commited ", entry)
+	respond.With(w, r, http.StatusOK, data)
+}
+
 func GetKeyValue(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	variables := mux.Vars(r)
@@ -76,8 +89,10 @@ func GetKeyValue(w http.ResponseWriter, r *http.Request) {
 		respond.With(w, r, http.StatusInternalServerError, message)
 	}
 
-	entry := RaftServerReference.State[key]
+	entry := (*RaftServerReference.State)[key]
 	data := ValueResponse{Value: entry.Value}
+	log.Println("Getting key value")
+	log.Println(helpers.PrettyPrint(entry))
 	respond.With(w, r, http.StatusOK, data)
 }
 
@@ -85,7 +100,9 @@ func AcceptLogEntry(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	key, value, err := getKeyAndValue(r)
 	Check(err)
+	makeSureLastEntryDataIsAvailable(r.Context())
 	entry, _ := RaftServerReference.AppRepository.PersistValue(r.Context(), key, value, RaftServerReference.CurrentTerm)
+	log.Println("Leader persisted value: ", entry)
 	if entry.IsEmpty() {
 		respond.With(w, r, http.StatusOK, PutResponse{Success: false})
 		return
@@ -93,10 +110,9 @@ func AcceptLogEntry(w http.ResponseWriter, r *http.Request) {
 
 	entries := []*raft_rpc.Entry{}
 	entries = append(entries, &pb.Entry{Index: int32(entry.Index), Value: int32(entry.Value), Key: entry.Key, TermNumber: int32(entry.TermNumber)})
-	makeSureLastEntryDataIsAvailable(r.Context())
 	orderFollowersToSyncTheirLog(entries)
 
-	RaftServerReference.State[entry.Key] = *entry
+	(*RaftServerReference.State)[entry.Key] = *entry
 	RaftServerReference.CommitIndex = entry.Index
 	orderFollowersToCommitTheirEntries()
 	data := PutResponse{Success: true}
@@ -111,8 +127,23 @@ func orderFollowersToSyncTheirLog(entries []*raft_rpc.Entry) {
 		go func(leaderId string, previousEntryIndex int, previousEntryTerm int, commitIndex int, otherServer string) {
 			appendEntriesRequest := pb.AppendEntriesRequest{Term: int32(RaftServerReference.CurrentTerm), LeaderId: RaftServerReference.Id, PreviousLogIndex: int32(previousEntryIndex), PreviousLogTerm: int32(previousEntryTerm), Entries: entries, LeaderCommitIndex: int32(commitIndex)}
 			client := RpcClientReference.GetClientFor(otherServer)
-			log.Print(client)
+			log.Print("Sending append entries request to: ", otherServer)
 			reply, err := client.AppendEntries(context.Background(), &appendEntriesRequest, grpc.EmptyCallOption{})
+			if err != nil {
+				log.Print("Append entries failed, because ", err, "Reply: ", reply)
+			}
+			for !reply.Success {
+				log.Printf("Follower %s did not accepted entry, syncing log", otherServer)
+				if appendEntriesRequest.PreviousLogIndex == -1 {
+					log.Panic("Follower should accept entry, because leader log is empty")
+				}
+				appendEntriesRequest.PreviousLogIndex -= 1
+				previousEntry, _ := RaftServerReference.AppRepository.GetEntryAtIndex(context.Background(), int(appendEntriesRequest.PreviousLogIndex))
+				appendEntriesRequest.PreviousLogTerm = int32(previousEntry.TermNumber)
+				appendEntriesRequest.Entries = append([]*pb.Entry{{Index: int32(previousEntry.Index), Value: int32(previousEntry.Value), Key: previousEntry.Key, TermNumber: int32(previousEntry.TermNumber)}}, appendEntriesRequest.Entries...)
+				reply, err = client.AppendEntries(context.Background(), &appendEntriesRequest, grpc.EmptyCallOption{})
+
+			}
 			//If the reply unsuccessfull force followers to sync their log
 			//Find matching entry on follower and order it to replace a slice of log so it matches with leader
 
@@ -143,16 +174,14 @@ func orderFollowersToCommitTheirEntries() {
 }
 
 func makeSureLastEntryDataIsAvailable(ctx context.Context) {
-	if RaftServerReference.PreviousEntryIndex < 0 || RaftServerReference.PreviousEntryTerm < 0 {
-		entry, _ := RaftServerReference.AppRepository.GetLastEntry(ctx)
-		if entry.IsEmpty() {
-			RaftServerReference.PreviousEntryIndex = entry.Index
-			RaftServerReference.PreviousEntryTerm = entry.TermNumber
-		}
-
+	entry, _ := RaftServerReference.AppRepository.GetLastEntry(ctx)
+	if !entry.IsEmpty() {
+		RaftServerReference.PreviousEntryIndex = entry.Index
+		RaftServerReference.PreviousEntryTerm = entry.TermNumber
+		return
 	}
-	RaftServerReference.PreviousEntryIndex = 0
-	RaftServerReference.PreviousEntryTerm = 0
+	RaftServerReference.PreviousEntryIndex = -1
+	RaftServerReference.PreviousEntryTerm = -1
 }
 
 func getKeyAndValue(r *http.Request) (string, int, error) {
@@ -166,7 +195,6 @@ func getKeyAndValue(r *http.Request) (string, int, error) {
 	if key == "" {
 		return key, value, errors.New("argument 'key' missing")
 	}
-
 	value, convError := strconv.Atoi(variables["value"])
 	if convError != nil {
 		return key, value, err
@@ -194,6 +222,7 @@ func HandleRequests(port string) {
 	r.HandleFunc("/status", GetStatus)
 	r.HandleFunc("/get/{key}", GetKeyValue)
 	r.HandleFunc("/put/{key}/{value}", AcceptLogEntry)
+	r.HandleFunc("/backdoor/put/{key}/{value}", PersistAndCommitValue)
 	log.Printf("API listens on %s", port)
 	log.Fatal(http.ListenAndServe(":"+port, nil))
 }

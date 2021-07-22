@@ -12,7 +12,7 @@ import (
 
 type Server struct {
 	structs.ServerType
-	State              map[string]entry.Entry
+	State              *map[string]entry.Entry
 	CurrentTerm        int
 	PreviousEntryIndex int
 	PreviousEntryTerm  int
@@ -25,7 +25,8 @@ type Server struct {
 func (s *Server) StartServer(id string) {
 	s.Id = id
 	s.ServerType = structs.ServerType(structs.Candidate)
-	s.State = make(map[string]entry.Entry)
+	state := make(map[string]entry.Entry)
+	s.State = &state
 	s.PreviousEntryIndex = -1
 	s.PreviousEntryTerm = -1
 	s.CommitIndex = -1
@@ -44,7 +45,7 @@ func (s *Server) StartServer(id string) {
 func (s Server) RebuildStateFromLog() bool {
 	entries, _ := s.AppRepository.GetLog(context.Background())
 	for _, entry := range *entries {
-		s.State[entry.Key] = entry
+		(*s.State)[entry.Key] = entry
 	}
 	return true
 }
