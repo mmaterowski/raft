@@ -26,6 +26,7 @@ var (
 	ErrNoRowsUpdated           = errors.New("no rows were updated")
 	ErrCouldNotReconstructLog  = errors.New("couldnt reconstruct log. Probably there's invalid entry in log")
 	ErrInvalidArgument         = errors.New("argument passed to method was invalid")
+	ErrDeleteOutsideOfRange    = errors.New("could not delete entries that are outside of entries length")
 )
 
 func NewSqlLiteRepository(dbPath string) (SqlLiteRepository, error) {

@@ -30,8 +30,6 @@ func (c InMemoryContext) GetEntryAtIndex(ctx context.Context, index int) (*entry
 	if index >= len(c.entries) || index < 0 {
 		return &entry.Entry{}, nil
 	}
-	log.Print("Getting entry at index: ", index)
-	log.Print("Entries: ", c.entries)
 	return &c.entries[index], nil
 }
 
@@ -69,7 +67,11 @@ func (c *InMemoryContext) DeleteAllEntriesStartingFrom(ctx context.Context, inde
 		c.entries = make([]entry.Entry, 0)
 		return nil
 	}
-	c.entries = c.entries[index:len(c.entries)]
+	if index >= len(c.entries) {
+		log.Printf("Got request to delete entries outside of entries length")
+		return ErrDeleteOutsideOfRange
+	}
+	c.entries = c.entries[0:index]
 	return nil
 
 }

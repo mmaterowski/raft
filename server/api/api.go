@@ -144,16 +144,6 @@ func orderFollowersToSyncTheirLog(entries []*raft_rpc.Entry) {
 				reply, err = client.AppendEntries(context.Background(), &appendEntriesRequest, grpc.EmptyCallOption{})
 
 			}
-			//If the reply unsuccessfull force followers to sync their log
-			//Find matching entry on follower and order it to replace a slice of log so it matches with leader
-
-			//Init next index value with your last matching log
-			//Decrement next index and send previous entry
-			//Question: Maybe that's how you make call with multiple entries? Just send whole slice that increasingly grows
-			// and when it's accepted it's synced
-			//Repeat
-			//Finally it will sync
-
 			Check(err)
 			log.Print(reply.String())
 			defer wg.Done()

@@ -66,7 +66,22 @@ func TestInMemPersistValuesDoesNotFail(t *testing.T) {
 	}
 }
 
-func TestInMemDeletingEntryWorks(t *testing.T) {
+func TestInMemDeletingAllEntries(t *testing.T) {
+	ctx := context.Background()
+	inMemContext := InMemoryContext{}
+	key := "testVal"
+	value := 12
+	index := 0
+	_, _ = inMemContext.PersistValue(ctx, key, value, index)
+	_, _ = inMemContext.PersistValue(ctx, key, value+1, index)
+	_, _ = inMemContext.PersistValue(ctx, key, value+2, index)
+	inMemContext.DeleteAllEntriesStartingFrom(ctx, 0)
+	if (len(inMemContext.entries)) != 0 {
+		t.Errorf("Expected no entries")
+	}
+}
+
+func TestInMemDeletingEntryOutsideOfRange(t *testing.T) {
 	ctx := context.Background()
 	inMemContext := InMemoryContext{}
 	key := "testVal"
@@ -76,9 +91,25 @@ func TestInMemDeletingEntryWorks(t *testing.T) {
 	if err != nil {
 		t.Errorf("Expected no error: %s", err)
 	}
-	inMemContext.DeleteAllEntriesStartingFrom(ctx, 0)
-	if (len(inMemContext.entries)) != 0 {
-		t.Errorf("Expected no entries")
+	err = inMemContext.DeleteAllEntriesStartingFrom(ctx, 23)
+	if err == nil {
+		t.Errorf("Expected err")
+	}
+}
+
+func TestInMemDeletingSlice(t *testing.T) {
+	ctx := context.Background()
+	inMemContext := InMemoryContext{}
+	key := "testVal"
+	value := 12
+	index := 0
+	_, _ = inMemContext.PersistValue(ctx, key, value, index)
+	_, _ = inMemContext.PersistValue(ctx, key, value+1, index)
+	_, _ = inMemContext.PersistValue(ctx, key, value+2, index)
+
+	_ = inMemContext.DeleteAllEntriesStartingFrom(ctx, 1)
+	if (len(inMemContext.entries)) != 1 {
+		t.Errorf("Expected single entry left")
 	}
 }
 

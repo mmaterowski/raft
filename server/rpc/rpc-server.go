@@ -17,6 +17,7 @@ type Server struct {
 }
 
 func (s *Server) CommitAvailableEntries(ctx context.Context, in *pb.CommitAvailableEntriesRequest) (*pb.Empty, error) {
+	log.Printf("_________________________________")
 	log.Printf("Received request to commit entry")
 	leaderCommitIndex := int(in.LeaderCommitIndex)
 	if s.Server.CommitIndex > leaderCommitIndex {
@@ -39,9 +40,7 @@ func (s *Server) CommitAvailableEntries(ctx context.Context, in *pb.CommitAvaila
 			return &pb.Empty{}, err
 		}
 		log.Print("Commiting new entry to state. Key: ", entry.Key, " Entry: ", entry)
-		log.Print("Server state before:", (*s.Server.State))
 		(*s.Server.State)[entry.Key] = *entry
-		log.Print("Server state after:", (*s.Server.State))
 
 		s.Server.CommitIndex++
 	}
@@ -52,6 +51,7 @@ func (s *Server) CommitAvailableEntries(ctx context.Context, in *pb.CommitAvaila
 
 func (s *Server) AppendEntries(ctx context.Context, in *pb.AppendEntriesRequest) (*pb.AppendEntriesReply, error) {
 	//TODO not sure which term should i return
+	log.Print("__________________________________")
 	log.Print("Appending entries request received")
 	term := int32(666)
 	successReply := &pb.AppendEntriesReply{Success: true, Term: term}
@@ -66,25 +66,19 @@ func (s *Server) AppendEntries(ctx context.Context, in *pb.AppendEntriesRequest)
 		return successReply, nil
 	}
 	log.Print("Leader PreviousLogIndex: ", in.PreviousLogIndex)
-	if in.PreviousLogIndex != -1 {
-		entry, err := s.Server.AppRepository.GetLastEntry(ctx)
-		log.Print("Checking previous entry", entry)
+	entry, _ := s.Server.AppRepository.GetLastEntry(ctx)
+	lastEntryInSync := isLastEntryInSync(int(in.PreviousLogIndex), int(in.PreviousLogTerm), *entry)
 
-		if entry.IsEmpty() {
-			log.Print("Expected to find entry, but there's none", err)
-			return failReply, nil
+	if !lastEntryInSync {
+		err := s.Server.AppRepository.DeleteAllEntriesStartingFrom(ctx, int(in.PreviousLogIndex))
+		if err != nil {
+			log.Panic("Found conflicting entry, but couldn't delete it. That's bad, I panic")
 		}
-
-		log.Printf("Previous entry term: %d. Previous entry term from leader: %d", entry.TermNumber, int(in.PreviousLogTerm))
-		if entry.Index != int(in.PreviousLogIndex) || entry.TermNumber != int(in.PreviousLogTerm) {
-			err := s.Server.AppRepository.DeleteAllEntriesStartingFrom(ctx, int(in.PreviousLogIndex))
-			if err != nil {
-				log.Panic("Found conflicting entry, but couldn't delete it. That's bad, I panic")
-			}
-			log.Printf("Follower has different term number on the entry with index '%d'. Entry term: '%d', but expected '%d'", in.PreviousLogIndex, entry.TermNumber, in.PreviousLogTerm)
-			return failReply, nil
-		}
+		logEntries, _ := s.Server.AppRepository.GetLog(ctx)
+		log.Print("Last entry not in sync. LastEntry: ", entry, "Follower after deleting conflicts: ", logEntries)
+		return failReply, nil
 	}
+
 	entries := mapRaftEntriesToEntries(in.Entries)
 	log.Print("Conditions satisfied. Persisting entries", entries)
 	lastAppendedEntry, err := s.Server.AppRepository.PersistValues(ctx, entries)
@@ -103,6 +97,19 @@ func (s *Server) AppendEntries(ctx context.Context, in *pb.AppendEntriesRequest)
 	log.Println("Follower: Succesfully appended entries to log")
 	log.Println(helpers.PrettyPrint(in))
 	return successReply, nil
+}
+
+func isLastEntryInSync(leaderLastLogIndex int, leaderLastLogTerm int, lastEntry entry.Entry) bool {
+	if leaderLastLogIndex != -1 {
+		if lastEntry.IsEmpty() {
+			return false
+		}
+
+		if lastEntry.Index != leaderLastLogIndex || lastEntry.TermNumber != leaderLastLogTerm {
+			return false
+		}
+	}
+	return true
 }
 
 func mapRaftEntriesToEntries(rpcEntries []*pb.Entry) []entry.Entry {
