@@ -29,6 +29,14 @@ func up(identifier string) error {
 	if err != nil {
 		return fmt.Errorf("Could not run compose file: %v - %v", composeFilePaths, err)
 	}
+
+	//RESTARTING CONTAINER MANUALLY
+	// time.Sleep(10 * time.Second)
+	// execError = compose.WithCommand([]string{"restart", "-t", "30", "kim"}).Invoke()
+	// time.Sleep(10 * time.Second)
+	// if execError.Error != nil {
+	// 	log.Print(execError)
+	// }
 	return nil
 }
 

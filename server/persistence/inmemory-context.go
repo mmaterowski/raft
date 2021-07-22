@@ -59,6 +59,10 @@ func (c InMemoryContext) GetLog(ctx context.Context) (*[]entry.Entry, error) {
 }
 
 func (c *InMemoryContext) DeleteAllEntriesStartingFrom(ctx context.Context, index int) error {
+	if index == 0 {
+		c.entries = make([]entry.Entry, 0)
+		return nil
+	}
 	c.entries = c.entries[index:len(c.entries)]
 	return nil
 
