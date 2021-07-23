@@ -101,7 +101,10 @@ func AcceptLogEntry(w http.ResponseWriter, r *http.Request) {
 	key, value, err := getKeyAndValue(r)
 	Check(err)
 	makeSureLastEntryDataIsAvailable(r.Context())
-	entry, _ := RaftServerReference.AppRepository.PersistValue(r.Context(), key, value, RaftServerReference.CurrentTerm)
+	entry, persistErr := RaftServerReference.AppRepository.PersistValue(r.Context(), key, value, RaftServerReference.CurrentTerm)
+	if persistErr != nil {
+		log.Print("Error while persisting entry", persistErr)
+	}
 	log.Println("Leader persisted value: ", entry)
 	if entry.IsEmpty() {
 		respond.With(w, r, http.StatusOK, PutResponse{Success: false})
