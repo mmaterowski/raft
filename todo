@@ -1,19 +1,21 @@
 Log replication:
     ✔ Handle multiple entries append @done(21-07-23 07:11)
     ✔ Change persistence provider - failed, no alternative @done(21-07-23 09:08)
+    ✔ Leader forces followers to sync their logs @done(21-07-23 11:26)
+    ☐ Log rebuilds properly after failure @today 
+    ☐ Log synces properly after failure @today 
+    ☐ Work out different log testing scenarios and implement them all (paper) @today @critical 
     ☐ Error logging, panicking, what to do when persistence fails?
-    ☐ How to test 3 containers and leader / follower logic?
 
 Testing: 
-    ☐ Log rebuilds properly after failure @started(21-07-23 09:09)
+    ✔ Integration Tests running in docker @done(21-07-23 11:29)
     ☐ Probes, tests sometimes fail because of rpc not ready
-    ☐ Log synces properly after failure
-    ☐ Work out different log testing scenarios
+    ☐ Extensive Sql tests
 
 Docker: 
-    ☐ go build slow, test with new provider
-    ☐ how to structure and separate docker composes / tests and files
+    ☐ go build slow, check out comments from stack
     ☐ store config in .env 
+    ☐ make separate docker file for tests
 
 Leader election:
     ☐ After persistence is working properly plan out election
