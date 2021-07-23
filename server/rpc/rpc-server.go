@@ -27,7 +27,10 @@ func (s *Server) CommitAvailableEntries(ctx context.Context, in *pb.CommitAvaila
 	for leaderCommitIndex != s.Server.CommitIndex {
 		//TODO Optimize:Get all entries at once
 		nextEntryIndexToCommit := s.Server.CommitIndex + 1
-		last, _ := s.Server.AppRepository.GetLastEntry(ctx)
+		last, lastEntryErr := s.Server.AppRepository.GetLastEntry(ctx)
+		if lastEntryErr != nil {
+			log.Print("Couldn't get last entry. ", lastEntryErr)
+		}
 		log.Print("Last entry in log: ", last)
 		entry, err := s.Server.AppRepository.GetEntryAtIndex(ctx, nextEntryIndexToCommit)
 		if err != nil {
@@ -100,7 +103,7 @@ func (s *Server) AppendEntries(ctx context.Context, in *pb.AppendEntriesRequest)
 }
 
 func isLastEntryInSync(leaderLastLogIndex int, leaderLastLogTerm int, lastEntry entry.Entry) bool {
-	if leaderLastLogIndex != -1 {
+	if leaderLastLogIndex != 0 {
 		if lastEntry.IsEmpty() {
 			return false
 		}

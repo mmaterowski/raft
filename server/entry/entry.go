@@ -20,7 +20,7 @@ var (
 )
 
 func New(index, value, termNumber int, key string) (*Entry, error) {
-	if guard.AgainstNegativeValue(termNumber) {
+	if guard.AgainstNegativeValue(index) {
 		return &Entry{}, ErrIndexLowerThanZero
 	}
 

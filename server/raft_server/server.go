@@ -5,6 +5,7 @@ import (
 	"log"
 
 	_ "github.com/mattn/go-sqlite3"
+	"github.com/mmaterowski/raft/consts"
 	"github.com/mmaterowski/raft/entry"
 	. "github.com/mmaterowski/raft/persistence"
 	"github.com/mmaterowski/raft/structs"
@@ -27,9 +28,9 @@ func (s *Server) StartServer(id string) {
 	s.ServerType = structs.ServerType(structs.Candidate)
 	state := make(map[string]entry.Entry)
 	s.State = &state
-	s.PreviousEntryIndex = -1
-	s.PreviousEntryTerm = -1
-	s.CommitIndex = -1
+	s.PreviousEntryIndex = consts.NoPreviousEntryValue
+	s.PreviousEntryTerm = consts.TermInitialValue
+	s.CommitIndex = consts.LeaderCommitInitialValue
 	log.Print("Starting server...")
 	s.VotedFor, _ = s.AppRepository.GetVotedFor(context.Background())
 	s.CurrentTerm, _ = s.AppRepository.GetCurrentTerm(context.Background())

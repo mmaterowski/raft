@@ -1,8 +1,20 @@
 Log replication:
-1. Handle multiple entries append
-2. Erro logging, panicking, what to do when persistence fails?
-3. How to test 3 containers and leader / follower logic?
+    ✔ Handle multiple entries append @done(21-07-23 07:11)
+    ✔ Change persistence provider - failed, no alternative @done(21-07-23 09:08)
+    ☐ Error logging, panicking, what to do when persistence fails?
+    ☐ How to test 3 containers and leader / follower logic?
+
+Testing: 
+    ☐ Log rebuilds properly after failure @started(21-07-23 09:09)
+    ☐ Log synces properly after failure
+    ☐ Work out different log testing scenarios
 
 Docker: 
-go build still super slow because of some external package, god knows what's going on
-how to structure and separate docker composes / tests and files
+    ☐ go build slow, test with new provider
+    ☐ how to structure and separate docker composes / tests and files
+    ☐ store config in .env 
+
+Leader election:
+    ☐ After persistence is working properly plan out election
+    ☐ Heartbeat
+    

@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 
+	"github.com/mmaterowski/raft/consts"
 	"github.com/mmaterowski/raft/entry"
 	"github.com/mmaterowski/raft/helpers"
 )
@@ -25,26 +26,37 @@ type AppRepository interface {
 	DeleteAllEntriesStartingFrom(ctx context.Context, index int) error
 }
 
-type Db struct {
-	AppRepository
-	Path string
+type DbConfig struct {
+	Path     string
+	InMemory bool
 }
 
-func NewDb(debug bool) Db {
-	dbPath := "../data/raft-db/log.db"
-	if debug {
-		dbPath = "./log.db"
+type Db struct {
+	AppRepository
+}
+
+func GetDbConfig(env string) DbConfig {
+	config := DbConfig{}
+	config.InMemory = env == consts.Local
+	if env == consts.LocalWithPersistence {
+		config.Path = "./log.db"
+	} else {
+		config.Path = "../data/raft-db/log.db"
 	}
+	return config
+}
+
+func NewDb(config DbConfig) Db {
 	db := Db{}
-	if debug {
+	if config.InMemory {
 		log.Print("Using in memory db")
 		db.AppRepository = &InMemoryContext{}
 	} else {
 		log.Print("Using sqllite db")
-		context, err := NewSqlLiteRepository(dbPath)
+		log.Print("Db path: ", config.Path)
+		context, err := NewSqlLiteRepository(config.Path)
 		helpers.Check(err)
-
-		db = Db{Path: dbPath, AppRepository: context}
+		db = Db{AppRepository: context}
 	}
 
 	return db

@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/mmaterowski/raft/consts"
 	"github.com/mmaterowski/raft/entry"
 	"github.com/mmaterowski/raft/guard"
 )
@@ -27,6 +28,7 @@ var (
 	ErrCouldNotReconstructLog  = errors.New("couldnt reconstruct log. Probably there's invalid entry in log")
 	ErrInvalidArgument         = errors.New("argument passed to method was invalid")
 	ErrDeleteOutsideOfRange    = errors.New("could not delete entries that are outside of entries length")
+	ErrQueryingRow             = errors.New("something bad happened")
 )
 
 func NewSqlLiteRepository(dbPath string) (SqlLiteRepository, error) {
@@ -37,7 +39,7 @@ func NewSqlLiteRepository(dbPath string) (SqlLiteRepository, error) {
 		return SqlLiteRepository{}, ErrCantConnect
 	}
 
-	success := repo.initTablesIfNeeded()
+	success := repo.InitTablesIfNeeded()
 
 	if !success {
 		return SqlLiteRepository{}, ErrDbNotInitialized
@@ -51,7 +53,7 @@ func (s SqlLiteRepository) PersistValue(ctx context.Context, key string, value i
 	insertResult, err := insertStatement.Exec(value, key, termNumber)
 
 	if err != nil {
-		return nil, err
+		return &entry.Entry{}, err
 	}
 
 	lastInsertedId, err := insertResult.LastInsertId()
@@ -93,7 +95,7 @@ func (db SqlLiteRepository) GetEntryAtIndex(ctx context.Context, index int) (*en
 	selectStatement := fmt.Sprintf(`SELECT * FROM Entries WHERE "Index"=%d`, index)
 	var createdIndex, value, term int
 	var key string
-	err := db.handle.QueryRow(selectStatement).Scan(createdIndex, value, key, term)
+	err := db.handle.QueryRow(selectStatement).Scan(&createdIndex, &value, &key, &term)
 	if err != nil {
 		return &entry.Entry{}, err
 	}
@@ -104,7 +106,7 @@ func (db SqlLiteRepository) GetLastEntry(ctx context.Context) (*entry.Entry, err
 	selectStatement := `SELECT* FROM Entries WHERE "Index"=(SELECT MAX("Index") FROM Entries)`
 	var createdIndex, value, term int
 	var key string
-	err := db.handle.QueryRow(selectStatement).Scan(createdIndex, value, key, term)
+	err := db.handle.QueryRow(selectStatement).Scan(&createdIndex, &value, &key, &term)
 	if err != nil {
 		return &entry.Entry{}, err
 	}
@@ -113,12 +115,14 @@ func (db SqlLiteRepository) GetLastEntry(ctx context.Context) (*entry.Entry, err
 
 func (db SqlLiteRepository) GetCurrentTerm(ctx context.Context) (int, error) {
 	selectStatement := fmt.Sprintf(`SELECT CurrentTerm FROM Term WHERE "UniqueEntryId"="%s"`, db.uniqueEntryId)
-	currentTermNumber := 0
+	currentTermNumber := consts.TermUninitializedValue
 	sqlRes := ""
 
 	err := db.handle.QueryRow(selectStatement).Scan(&sqlRes)
-	if err != nil {
+	if err == sql.ErrNoRows {
 		return currentTermNumber, err
+	} else if err != nil {
+		log.Print(ErrQueryingRow, err)
 	}
 
 	currentTermNumber, convError := strconv.Atoi(sqlRes)
@@ -152,9 +156,12 @@ func (db SqlLiteRepository) GetVotedFor(ctx context.Context) (string, error) {
 	selectStatement := fmt.Sprintf(`SELECT VotedForId FROM VotedFor WHERE "UniqueEntryId"="%s"`, db.uniqueEntryId)
 	foundId := ""
 	err := db.handle.QueryRow(selectStatement).Scan(&foundId)
-	if err != nil {
+	if err == sql.ErrNoRows {
 		return foundId, err
+	} else if err != nil {
+		log.Print(ErrQueryingRow, err)
 	}
+
 	return foundId, nil
 }
 
@@ -189,9 +196,9 @@ func (db SqlLiteRepository) GetLog(ctx context.Context) (*[]entry.Entry, error) 
 	for rows.Next() {
 		var index, value, term int
 		var key string
-		err = rows.Scan(index, value, key, term)
+		err = rows.Scan(&index, &value, &key, &term)
 		if err != nil {
-			log.Print(err)
+			log.Print("Error while scanning log entries:", err)
 			couldntReconstructLog = true
 			break
 		}
@@ -211,7 +218,7 @@ func (db SqlLiteRepository) GetLog(ctx context.Context) (*[]entry.Entry, error) 
 }
 
 func (db SqlLiteRepository) DeleteAllEntriesStartingFrom(ctx context.Context, index int) error {
-	if guard.AgainstNegativeValue(index) {
+	if guard.AgainstZeroOrNegativeValue(index) {
 		return ErrInvalidArgument
 	}
 

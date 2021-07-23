@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"sync"
 
+	"github.com/mmaterowski/raft/consts"
 	"github.com/mmaterowski/raft/helpers"
 	. "github.com/mmaterowski/raft/helpers"
 	"github.com/mmaterowski/raft/raft_rpc"
@@ -173,8 +174,8 @@ func makeSureLastEntryDataIsAvailable(ctx context.Context) {
 		RaftServerReference.PreviousEntryTerm = entry.TermNumber
 		return
 	}
-	RaftServerReference.PreviousEntryIndex = -1
-	RaftServerReference.PreviousEntryTerm = -1
+	RaftServerReference.PreviousEntryIndex = consts.NoPreviousEntryValue
+	RaftServerReference.PreviousEntryTerm = consts.TermInitialValue
 }
 
 func getKeyAndValue(r *http.Request) (string, int, error) {
