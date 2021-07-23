@@ -6,6 +6,7 @@ Log replication:
 
 Testing: 
     ☐ Log rebuilds properly after failure @started(21-07-23 09:09)
+    ☐ Probes, tests sometimes fail because of rpc not ready
     ☐ Log synces properly after failure
     ☐ Work out different log testing scenarios
 

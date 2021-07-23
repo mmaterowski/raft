@@ -222,10 +222,19 @@ func (db SqlLiteRepository) DeleteAllEntriesStartingFrom(ctx context.Context, in
 		return ErrInvalidArgument
 	}
 
-	insert := fmt.Sprintf("DELETE FROM Entries Where Index >= '%d'", index)
+	insert := fmt.Sprintf("DELETE FROM Entries Where 'Index' >= '%d'", index)
 	statement, _ := db.handle.Prepare(insert)
-	_, err := statement.Exec()
-	return err
+	_, deleteErr := statement.Exec()
+	if deleteErr != nil {
+		return deleteErr
+	}
+	autoincrementResetStatement := `UPDATE "sqlite_sequence"
+	SET "seq" = (SELECT COUNT("Index")-1 FROM "Entries")-1
+	WHERE name = "Entries"`
+	statement, _ = db.handle.Prepare(autoincrementResetStatement)
+	_, incErr := statement.Exec()
+
+	return incErr
 }
 
 func atLeastOneRowWasUpdated(result sql.Result) bool {
