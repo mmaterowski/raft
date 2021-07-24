@@ -10,6 +10,7 @@ import (
 	"sync"
 
 	"github.com/mmaterowski/raft/consts"
+	"github.com/mmaterowski/raft/entry"
 	"github.com/mmaterowski/raft/helpers"
 	. "github.com/mmaterowski/raft/helpers"
 	"github.com/mmaterowski/raft/raft_rpc"
@@ -79,6 +80,18 @@ func PersistAndCommitValue(w http.ResponseWriter, r *http.Request) {
 	respond.With(w, r, http.StatusOK, data)
 }
 
+func DeleteAllEntries(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	_ = RaftServerReference.AppRepository.DeleteAllEntriesStartingFrom(r.Context(), 1)
+	(*RaftServerReference.State) = map[string]entry.Entry{}
+	RaftServerReference.CommitIndex = consts.LeaderCommitInitialValue
+	RaftServerReference.PreviousEntryIndex = consts.NoPreviousEntryValue
+	RaftServerReference.PreviousEntryTerm = consts.TermInitialValue
+	data := PutResponse{Success: true}
+	log.Print("Backdooring. Deleted all entries and cleared state")
+	respond.With(w, r, http.StatusOK, data)
+}
+
 func GetKeyValue(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	variables := mux.Vars(r)
@@ -145,8 +158,8 @@ func orderFollowersToSyncTheirLog(entries []*raft_rpc.Entry) {
 					if appendEntriesRequest.PreviousLogIndex == -1 {
 						log.Panic("Follower should accept entry, because leader log is empty")
 					}
-					appendEntriesRequest.PreviousLogIndex -= 1
 					previousEntry, _ := RaftServerReference.AppRepository.GetEntryAtIndex(context.Background(), int(appendEntriesRequest.PreviousLogIndex))
+					appendEntriesRequest.PreviousLogIndex -= 1
 					appendEntriesRequest.PreviousLogTerm = int32(previousEntry.TermNumber)
 					appendEntriesRequest.Entries = append([]*pb.Entry{{Index: int32(previousEntry.Index), Value: int32(previousEntry.Value), Key: previousEntry.Key, TermNumber: int32(previousEntry.TermNumber)}}, appendEntriesRequest.Entries...)
 					reply, _ = client.AppendEntries(context.Background(), &appendEntriesRequest, grpc.EmptyCallOption{})
@@ -224,6 +237,7 @@ func HandleRequests(port string) {
 	r.HandleFunc("/get/{key}", GetKeyValue)
 	r.HandleFunc("/put/{key}/{value}", AcceptLogEntry)
 	r.HandleFunc("/backdoor/put/{key}/{value}", PersistAndCommitValue)
+	r.HandleFunc("/backdoor/deleteall", DeleteAllEntries)
 	log.Printf("API listens on %s", port)
 	log.Fatal(http.ListenAndServe(":"+port, nil))
 }

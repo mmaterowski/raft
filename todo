@@ -2,15 +2,15 @@ Log replication:
     ✔ Handle multiple entries append @done(21-07-23 07:11)
     ✔ Change persistence provider - failed, no alternative @done(21-07-23 09:08)
     ✔ Leader forces followers to sync their logs @done(21-07-23 11:26)
-    ☐ Log rebuilds properly after failure @today 
-    ☐ Log synces properly after failure @today 
+    ✔ Log rebuilds properly after failure @today @done(21-07-24 09:55)
+    ✔ Log synces properly after failure @today @done(21-07-24 09:55)
     ☐ Work out different log testing scenarios and implement them all (paper) @today @critical 
     ☐ Error logging, panicking, what to do when persistence fails?
 
 Testing: 
     ✔ Integration Tests running in docker @done(21-07-23 11:29)
     ☐ Probes, tests sometimes fail because of rpc not ready
-    ☐ Extensive Sql tests
+    ✔ Extensive Sql tests @done(21-07-24 09:55)
 
 Docker: 
     ☐ go build slow, check out comments from stack

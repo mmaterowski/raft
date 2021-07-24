@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	api "github.com/mmaterowski/raft/api"
 	"github.com/testcontainers/testcontainers-go"
+	"github.com/testcontainers/testcontainers-go/wait"
 )
 
 var compose *testcontainers.LocalDockerCompose
@@ -29,11 +30,17 @@ func up() error {
 	identifier := strings.ToLower(uuid.New().String())
 	compose = testcontainers.NewLocalDockerCompose(composeFilePaths, identifier)
 	execError := compose.WithCommand([]string{"up", "-d"}).Invoke()
-
 	err := execError.Error
 	if err != nil {
 		return fmt.Errorf("Could not run compose file: %v - %v", composeFilePaths, err)
 	}
+
+	kimPort := 6969
+	laszloPort := 6970
+	rickyPort := 6971
+	wait.ForHTTP(fmt.Sprintf("http://localhost:%d/", kimPort))
+	wait.ForHTTP(fmt.Sprintf("http://localhost:%d/", laszloPort))
+	wait.ForHTTP(fmt.Sprintf("http://localhost:%d/", rickyPort))
 
 	return nil
 }
@@ -72,7 +79,17 @@ func TestCheckAvailability(t *testing.T) {
 	}
 }
 
+func deleteEntriesFromAllServers() {
+	kimPort := 6969
+	laszloPort := 6970
+	rickyPort := 6971
+	_, _ = http.Get(fmt.Sprintf("http://localhost:%d/backdoor/deleteall", kimPort))
+	_, _ = http.Get(fmt.Sprintf("http://localhost:%d/backdoor/deleteall", laszloPort))
+	_, _ = http.Get(fmt.Sprintf("http://localhost:%d/backdoor/deleteall", rickyPort))
+}
+
 func TestPutKeyIsReplicatedOnAllMachines(t *testing.T) {
+	deleteEntriesFromAllServers()
 	key := "key"
 	value := 3
 	kimPort := "6969"
@@ -106,6 +123,7 @@ func TestPutKeyIsReplicatedOnAllMachines(t *testing.T) {
 
 }
 func TestLogRebuiltProperlyAfterFailure(t *testing.T) {
+	deleteEntriesFromAllServers()
 	key1 := "key1"
 	key2 := "key2"
 	key3 := "key3"
@@ -135,6 +153,7 @@ func TestLogRebuiltProperlyAfterFailure(t *testing.T) {
 }
 
 func TestLeaderForcingFollowerToSyncLog(t *testing.T) {
+	deleteEntriesFromAllServers()
 	key1 := "key1"
 	key2 := "key2"
 	key3 := "key3"
@@ -159,8 +178,12 @@ func TestLeaderForcingFollowerToSyncLog(t *testing.T) {
 
 	otherPort := "6970"
 	_, _ = http.Get(fmt.Sprintf("http://localhost:%s/backdoor/put/%s/%d", otherPort, outOfSyncKey, value))
+	//TODO: Investigate timing issue!
+	time.Sleep(2 * time.Second)
 
 	_, _ = http.Get(fmt.Sprintf("http://localhost:%s/put/%s/%d", kimPort, outOfSyncKey, expectedOutOfSyncKeyValue))
+	time.Sleep(2 * time.Second)
+
 	getKeyResponse, _ = http.Get(fmt.Sprintf("http://localhost:%s/get/%s", otherPort, outOfSyncKey))
 	err = json.NewDecoder(getKeyResponse.Body).Decode(&r)
 	if err != nil {
@@ -174,6 +197,7 @@ func TestLeaderForcingFollowerToSyncLog(t *testing.T) {
 }
 
 func TestLogSyncedAfterServiceNotWorkingForAWhile(t *testing.T) {
+	deleteEntriesFromAllServers()
 	key1 := "key1"
 	key2 := "key2"
 	key3 := "key3"
@@ -200,7 +224,8 @@ func TestLogSyncedAfterServiceNotWorkingForAWhile(t *testing.T) {
 
 	newValueAfterRickyIsUp := 666
 	_, _ = http.Get(fmt.Sprintf("http://localhost:%s/put/%s/%d", kimPort, key1, newValueAfterRickyIsUp))
-
+	//TODO: TIMING ISSUES WITH PUT
+	time.Sleep(2 * time.Second)
 	rickyPort := 6970
 	getKeyResponse, _ := http.Get(fmt.Sprintf("http://localhost:%d/get/%s", rickyPort, key3))
 	var r api.ValueResponse
