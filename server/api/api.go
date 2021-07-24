@@ -127,29 +127,36 @@ func orderFollowersToSyncTheirLog(entries []*raft_rpc.Entry) {
 	var wg sync.WaitGroup
 
 	wg.Add((len(others) / 2) + 1)
+
 	for _, otherServer := range others {
 		go func(leaderId string, previousEntryIndex int, previousEntryTerm int, commitIndex int, otherServer string) {
 			appendEntriesRequest := pb.AppendEntriesRequest{Term: int32(RaftServerReference.CurrentTerm), LeaderId: RaftServerReference.Id, PreviousLogIndex: int32(previousEntryIndex), PreviousLogTerm: int32(previousEntryTerm), Entries: entries, LeaderCommitIndex: int32(commitIndex)}
 			client := RpcClientReference.GetClientFor(otherServer)
 			log.Print("Sending append entries request to: ", otherServer)
-			reply, err := client.AppendEntries(context.Background(), &appendEntriesRequest, grpc.EmptyCallOption{})
-			if err != nil {
-				log.Print("Append entries failed, because ", err, "Reply: ", reply)
+			reply, rpcRequestError := client.AppendEntries(context.Background(), &appendEntriesRequest, grpc.EmptyCallOption{})
+			//TODO: The request wil fail also from other reasons than server being unavailable, handle retries
+			if rpcRequestError != nil {
+				log.Print("Append entries request failed, because:  ", rpcRequestError)
+				log.Print("Reply: ", reply)
 			}
-			for !reply.Success {
-				log.Printf("Follower %s did not accepted entry, syncing log", otherServer)
-				if appendEntriesRequest.PreviousLogIndex == -1 {
-					log.Panic("Follower should accept entry, because leader log is empty")
+			if rpcRequestError == nil {
+				for !reply.Success {
+					log.Printf("Follower %s did not accepted entry, syncing log", otherServer)
+					if appendEntriesRequest.PreviousLogIndex == -1 {
+						log.Panic("Follower should accept entry, because leader log is empty")
+					}
+					appendEntriesRequest.PreviousLogIndex -= 1
+					previousEntry, _ := RaftServerReference.AppRepository.GetEntryAtIndex(context.Background(), int(appendEntriesRequest.PreviousLogIndex))
+					appendEntriesRequest.PreviousLogTerm = int32(previousEntry.TermNumber)
+					appendEntriesRequest.Entries = append([]*pb.Entry{{Index: int32(previousEntry.Index), Value: int32(previousEntry.Value), Key: previousEntry.Key, TermNumber: int32(previousEntry.TermNumber)}}, appendEntriesRequest.Entries...)
+					reply, _ = client.AppendEntries(context.Background(), &appendEntriesRequest, grpc.EmptyCallOption{})
+					//TODO: It can also throw here! Refactoring needed
 				}
-				appendEntriesRequest.PreviousLogIndex -= 1
-				previousEntry, _ := RaftServerReference.AppRepository.GetEntryAtIndex(context.Background(), int(appendEntriesRequest.PreviousLogIndex))
-				appendEntriesRequest.PreviousLogTerm = int32(previousEntry.TermNumber)
-				appendEntriesRequest.Entries = append([]*pb.Entry{{Index: int32(previousEntry.Index), Value: int32(previousEntry.Value), Key: previousEntry.Key, TermNumber: int32(previousEntry.TermNumber)}}, appendEntriesRequest.Entries...)
-				reply, err = client.AppendEntries(context.Background(), &appendEntriesRequest, grpc.EmptyCallOption{})
-
 			}
-			Check(err)
-			log.Print(reply.String())
+
+			if reply != nil {
+				log.Print(reply.String())
+			}
 			defer wg.Done()
 		}(RaftServerReference.Id, RaftServerReference.PreviousEntryIndex, RaftServerReference.PreviousEntryTerm, RaftServerReference.CommitIndex, otherServer)
 	}

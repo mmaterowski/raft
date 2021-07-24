@@ -55,7 +55,7 @@ func TestAppendSuccessIfNoEntriesToAppend(t *testing.T) {
 	}
 }
 
-func TestAppendFailsIfMoreThanOneEntryInRequest(t *testing.T) {
+func TestAppendDoNotFailIfMoreThanOneEntryInRequest(t *testing.T) {
 	inMemContext := persistence.InMemoryContext{}
 	s := Server{}
 	s.AppRepository = persistence.Db{AppRepository: &inMemContext}
@@ -64,8 +64,8 @@ func TestAppendFailsIfMoreThanOneEntryInRequest(t *testing.T) {
 	entries := make([]*pb.Entry, 2)
 	request := pb.AppendEntriesRequest{Term: 10, Entries: entries}
 	reply, _ := s.AppendEntries(context.Background(), &request)
-	if reply.Success {
-		t.Errorf("Expected failed reply: %s", reply)
+	if !reply.Success {
+		t.Errorf("Expected success reply: %s", reply)
 	}
 }
 

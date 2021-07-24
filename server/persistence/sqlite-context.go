@@ -222,8 +222,8 @@ func (db SqlLiteRepository) DeleteAllEntriesStartingFrom(ctx context.Context, in
 		return ErrInvalidArgument
 	}
 
-	insert := fmt.Sprintf("DELETE FROM Entries Where 'Index' >= '%d'", index)
-	statement, _ := db.handle.Prepare(insert)
+	delete := fmt.Sprintf(`DELETE FROM Entries Where "Index" >= %d`, index)
+	statement, _ := db.handle.Prepare(delete)
 	_, deleteErr := statement.Exec()
 	if deleteErr != nil {
 		return deleteErr

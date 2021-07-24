@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/mmaterowski/raft/consts"
 	"github.com/mmaterowski/raft/entry"
 )
 
@@ -24,8 +25,8 @@ func TestInMemPersistValueDoesNotFail(t *testing.T) {
 	inMemContext := InMemoryContext{}
 	key := "testVal"
 	value := 12
-	index := 0
-	_, err := inMemContext.PersistValue(ctx, key, value, index)
+	term := consts.TermInitialValue
+	_, err := inMemContext.PersistValue(ctx, key, value, term)
 	if err != nil {
 		t.Errorf("Expected no error: %s", err)
 	}
@@ -86,8 +87,8 @@ func TestInMemDeletingEntryOutsideOfRange(t *testing.T) {
 	inMemContext := InMemoryContext{}
 	key := "testVal"
 	value := 12
-	index := 0
-	_, err := inMemContext.PersistValue(ctx, key, value, index)
+	term := consts.TermInitialValue
+	_, err := inMemContext.PersistValue(ctx, key, value, term)
 	if err != nil {
 		t.Errorf("Expected no error: %s", err)
 	}
@@ -102,10 +103,10 @@ func TestInMemDeletingSlice(t *testing.T) {
 	inMemContext := InMemoryContext{}
 	key := "testVal"
 	value := 12
-	index := 0
-	_, _ = inMemContext.PersistValue(ctx, key, value, index)
-	_, _ = inMemContext.PersistValue(ctx, key, value+1, index)
-	_, _ = inMemContext.PersistValue(ctx, key, value+2, index)
+	term := consts.TermInitialValue
+	_, _ = inMemContext.PersistValue(ctx, key, value, term)
+	_, _ = inMemContext.PersistValue(ctx, key, value+1, term)
+	_, _ = inMemContext.PersistValue(ctx, key, value+2, term)
 
 	_ = inMemContext.DeleteAllEntriesStartingFrom(ctx, 1)
 	if (len(inMemContext.entries)) != 1 {
@@ -118,8 +119,8 @@ func TestInMemDeletingAndReapendingEntryWorks(t *testing.T) {
 	inMemContext := InMemoryContext{}
 	key := "testVal"
 	value := 12
-	index := 0
-	_, err := inMemContext.PersistValue(ctx, key, value, index)
+	term := consts.TermInitialValue
+	_, err := inMemContext.PersistValue(ctx, key, value, term)
 	if err != nil {
 		t.Errorf("Expected no error: %s", err)
 	}
@@ -128,7 +129,7 @@ func TestInMemDeletingAndReapendingEntryWorks(t *testing.T) {
 		t.Errorf("Expected no entries")
 	}
 
-	_, _ = inMemContext.PersistValue(ctx, key, value, index)
+	_, _ = inMemContext.PersistValue(ctx, key, value, term)
 	entry, getErr := inMemContext.GetEntryAtIndex(ctx, 0)
 	if getErr != nil {
 		t.Errorf("Expected no error: %s", getErr)
@@ -181,5 +182,4 @@ func TestInMemGetLog(t *testing.T) {
 	if (*raftLog)[1].Key != "key2" {
 		t.Error("Goit invalid value from log")
 	}
-
 }

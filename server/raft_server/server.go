@@ -4,7 +4,6 @@ import (
 	"context"
 	"log"
 
-	_ "github.com/mattn/go-sqlite3"
 	"github.com/mmaterowski/raft/consts"
 	"github.com/mmaterowski/raft/entry"
 	. "github.com/mmaterowski/raft/persistence"
@@ -43,10 +42,12 @@ func (s *Server) StartServer(id string) {
 
 }
 
-func (s Server) RebuildStateFromLog() bool {
+func (s *Server) RebuildStateFromLog() bool {
 	entries, _ := s.AppRepository.GetLog(context.Background())
 	for _, entry := range *entries {
 		(*s.State)[entry.Key] = entry
+		s.CommitIndex = entry.Index
 	}
+	log.Print("Log successfully rebuilt. Entries: ", entries)
 	return true
 }
