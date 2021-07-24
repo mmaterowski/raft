@@ -97,7 +97,6 @@ func (s *Server) AppendEntries(ctx context.Context, in *pb.AppendEntriesRequest)
 
 	s.Server.PreviousEntryIndex = lastAppendedEntry.Index
 	s.Server.PreviousEntryTerm = lastAppendedEntry.TermNumber
-	//TODO: Set current term somewhere!
 	log.Println("Follower: Succesfully appended entries to log")
 	log.Println(helpers.PrettyPrint(in))
 	return successReply, nil

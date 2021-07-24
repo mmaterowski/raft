@@ -147,7 +147,6 @@ func orderFollowersToSyncTheirLog(entries []*raft_rpc.Entry) {
 			client := RpcClientReference.GetClientFor(otherServer)
 			log.Print("Sending append entries request to: ", otherServer)
 			reply, rpcRequestError := client.AppendEntries(context.Background(), &appendEntriesRequest, grpc.EmptyCallOption{})
-			//TODO: The request wil fail also from other reasons than server being unavailable, handle retries
 			if rpcRequestError != nil {
 				log.Print("Append entries request failed, because:  ", rpcRequestError)
 				log.Print("Reply: ", reply)
@@ -163,7 +162,6 @@ func orderFollowersToSyncTheirLog(entries []*raft_rpc.Entry) {
 					appendEntriesRequest.PreviousLogTerm = int32(previousEntry.TermNumber)
 					appendEntriesRequest.Entries = append([]*pb.Entry{{Index: int32(previousEntry.Index), Value: int32(previousEntry.Value), Key: previousEntry.Key, TermNumber: int32(previousEntry.TermNumber)}}, appendEntriesRequest.Entries...)
 					reply, _ = client.AppendEntries(context.Background(), &appendEntriesRequest, grpc.EmptyCallOption{})
-					//TODO: It can also throw here! Refactoring needed
 				}
 			}
 

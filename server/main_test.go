@@ -178,7 +178,6 @@ func TestLeaderForcingFollowerToSyncLog(t *testing.T) {
 
 	otherPort := "6970"
 	_, _ = http.Get(fmt.Sprintf("http://localhost:%s/backdoor/put/%s/%d", otherPort, outOfSyncKey, value))
-	//TODO: Investigate timing issue!
 	time.Sleep(2 * time.Second)
 
 	_, _ = http.Get(fmt.Sprintf("http://localhost:%s/put/%s/%d", kimPort, outOfSyncKey, expectedOutOfSyncKeyValue))
@@ -224,7 +223,6 @@ func TestLogSyncedAfterServiceNotWorkingForAWhile(t *testing.T) {
 
 	newValueAfterRickyIsUp := 666
 	_, _ = http.Get(fmt.Sprintf("http://localhost:%s/put/%s/%d", kimPort, key1, newValueAfterRickyIsUp))
-	//TODO: TIMING ISSUES WITH PUT
 	time.Sleep(2 * time.Second)
 	rickyPort := 6970
 	getKeyResponse, _ := http.Get(fmt.Sprintf("http://localhost:%d/get/%s", rickyPort, key3))
