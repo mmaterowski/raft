@@ -92,7 +92,7 @@ func (s *Server) AppendEntries(ctx context.Context, in *pb.AppendEntriesRequest)
 	}
 
 	if in.LeaderCommitIndex > int32(s.Server.CommitIndex) {
-		s.Server.CommitIndex = helpers.Min(int(in.LeaderCommitIndex), lastAppendedEntry.TermNumber)
+		s.Server.CommitIndex = helpers.Min(int(in.LeaderCommitIndex), entries[0].Index-1)
 	}
 
 	s.Server.PreviousEntryIndex = lastAppendedEntry.Index

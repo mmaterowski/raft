@@ -7,7 +7,7 @@ Log replication:
     ☐ Work out different log testing scenarios and implement them all (paper) @today @critical 
     ☐ Retry append requets call - consider network problems / unavailable clients
     ☐ Which term return from appendEntriesRequest?
-    ☐ Error logging, panicking, what to do when persistence fails?
+    ☐ Finish implementing log replication
 
 Testing: 
     ✔ Integration Tests running in docker @done(21-07-23 11:29)
@@ -15,7 +15,6 @@ Testing:
     ✔ Extensive Sql tests @done(21-07-24 09:55)
     ☐ Do I have timing issues or is it alright, coz' I'm still using manual api calls instead of Leader/Follower logic
     ☐ Do test run in paralell and is there better way to do setup/teardown @low 
-    
 
 Docker: 
     ☐ go build slow, check out comments from stack

@@ -13,6 +13,8 @@ import (
 
 	"github.com/google/uuid"
 	api "github.com/mmaterowski/raft/api"
+	"github.com/mmaterowski/raft/consts"
+	"github.com/mmaterowski/raft/helpers"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 )
@@ -21,12 +23,12 @@ var compose *testcontainers.LocalDockerCompose
 
 func up() error {
 	log.Printf("Clearing up db from last test")
-	e := os.RemoveAll("../db/")
+	e := os.RemoveAll("../../db/")
 	if e != nil {
 		log.Fatal(e)
 	}
 
-	composeFilePaths := []string{"../docker-compose.test.yaml"}
+	composeFilePaths := []string{"../../docker-compose.test.yaml"}
 	identifier := strings.ToLower(uuid.New().String())
 	compose = testcontainers.NewLocalDockerCompose(composeFilePaths, identifier)
 	execError := compose.WithCommand([]string{"up", "-d"}).Invoke()
@@ -120,7 +122,6 @@ func TestPutKeyIsReplicatedOnAllMachines(t *testing.T) {
 	if r.Value != value {
 		t.Errorf("Get request to: %s. Expected %d but got %d", otherPort, value, r.Value)
 	}
-
 }
 func TestLogRebuiltProperlyAfterFailure(t *testing.T) {
 	deleteEntriesFromAllServers()
@@ -149,7 +150,6 @@ func TestLogRebuiltProperlyAfterFailure(t *testing.T) {
 	if r.Value != value+2 {
 		t.Errorf("Get request to: %s. Expected %d but got %d. Log rebuild failed", kimPort, value, r.Value)
 	}
-
 }
 
 func TestLeaderForcingFollowerToSyncLog(t *testing.T) {
@@ -192,7 +192,6 @@ func TestLeaderForcingFollowerToSyncLog(t *testing.T) {
 	if r.Value != expectedOutOfSyncKeyValue {
 		t.Errorf("Get request to: %s. Expected %d but got %d", otherPort, value, r.Value)
 	}
-
 }
 
 func TestLogSyncedAfterServiceNotWorkingForAWhile(t *testing.T) {
@@ -224,8 +223,7 @@ func TestLogSyncedAfterServiceNotWorkingForAWhile(t *testing.T) {
 	newValueAfterRickyIsUp := 666
 	_, _ = http.Get(fmt.Sprintf("http://localhost:%s/put/%s/%d", kimPort, key1, newValueAfterRickyIsUp))
 	time.Sleep(2 * time.Second)
-	rickyPort := 6970
-	getKeyResponse, _ := http.Get(fmt.Sprintf("http://localhost:%d/get/%s", rickyPort, key3))
+	getKeyResponse, _ := http.Get(fmt.Sprintf("http://localhost:%d/get/%s", consts.RickyPort, key3))
 	var r api.ValueResponse
 	err := json.NewDecoder(getKeyResponse.Body).Decode(&r)
 	if err != nil {
@@ -233,16 +231,60 @@ func TestLogSyncedAfterServiceNotWorkingForAWhile(t *testing.T) {
 	}
 
 	if r.Value != rickyAsleepNewValue {
-		t.Errorf("Get request to: %d. Expected %d but got %d.", rickyPort, rickyAsleepNewValue, r.Value)
+		t.Errorf("Get request to: %d. Expected %d but got %d.", consts.RickyPort, rickyAsleepNewValue, r.Value)
 	}
 
-	getKeyResponse, _ = http.Get(fmt.Sprintf("http://localhost:%d/get/%s", rickyPort, key1))
+	getKeyResponse, _ = http.Get(fmt.Sprintf("http://localhost:%d/get/%s", consts.RickyPort, key1))
 	err = json.NewDecoder(getKeyResponse.Body).Decode(&r)
 	if err != nil {
 		t.Error("Couldn't read response body")
 	}
 	if r.Value != newValueAfterRickyIsUp {
-		t.Errorf("Get request to: %d. Expected %d but got %d.", rickyPort, newValueAfterRickyIsUp, r.Value)
+		t.Errorf("Get request to: %d. Expected %d but got %d.", consts.RickyPort, newValueAfterRickyIsUp, r.Value)
 	}
+}
+
+func TestFollowerMissingOneEntry(t *testing.T) {
+	swapTestDataAndRestartContainers("./test data/missing-one-entry.db")
+	missingKey := "hejka"
+	missingKeyValue := 12
+	getKeyResponse, _ := http.Get(fmt.Sprintf("http://localhost:%d/get/%s", consts.RickyPort, missingKey))
+	var r api.ValueResponse
+	_ = json.NewDecoder(getKeyResponse.Body).Decode(&r)
+	if r.Value == missingKeyValue {
+		t.Errorf("Expected key to be missing")
+	}
+
+	newKey := "newKey"
+	newKeyValue := 20
+	_, _ = http.Get(fmt.Sprintf("http://localhost:%d/put/%s/%d", consts.KimPort, newKey, newKeyValue))
+	time.Sleep(2 * time.Second)
+	getKeyResponse, _ = http.Get(fmt.Sprintf("http://localhost:%d/get/%s", consts.KimPort, newKey))
+	_ = json.NewDecoder(getKeyResponse.Body).Decode(&r)
+	if r.Value != newKeyValue {
+		t.Errorf("Expected value to be updated")
+	}
+
+	getKeyResponse, _ = http.Get(fmt.Sprintf("http://localhost:%d/get/%s", consts.RickyPort, missingKey))
+	_ = json.NewDecoder(getKeyResponse.Body).Decode(&r)
+	if r.Value != missingKeyValue {
+		t.Errorf("Expected follower to sync missing value")
+	}
+
+	getKeyResponse, _ = http.Get(fmt.Sprintf("http://localhost:%d/get/%s", consts.RickyPort, newKey))
+	_ = json.NewDecoder(getKeyResponse.Body).Decode(&r)
+	if r.Value != newKeyValue {
+		t.Errorf("Expected follower to have correct last entry value")
+	}
+}
+
+func swapTestDataAndRestartContainers(dbToSwap string) {
+	helpers.Copy(dbToSwap, "../../db/ricky/log.db")
+	helpers.Copy("./test data/leader.db", "../../db/kim/log.db")
+	helpers.Copy("./test data/leader.db", "../../db/laszlo/log.db")
+
+	_ = compose.WithCommand([]string{"restart", "-t", "30", consts.RickyServiceName}).Invoke()
+	_ = compose.WithCommand([]string{"restart", "-t", "30", consts.KimServiceName}).Invoke()
+	_ = compose.WithCommand([]string{"restart", "-t", "30", consts.LaszloServiceName}).Invoke()
 
 }

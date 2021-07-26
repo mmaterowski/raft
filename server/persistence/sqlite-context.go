@@ -121,7 +121,8 @@ func (db SqlLiteRepository) GetCurrentTerm(ctx context.Context) (int, error) {
 	err := db.handle.QueryRow(selectStatement).Scan(&sqlRes)
 	if err == sql.ErrNoRows {
 		return currentTermNumber, err
-	} else if err != nil {
+	}
+	if err != nil {
 		log.Print(ErrQueryingRow, err)
 	}
 

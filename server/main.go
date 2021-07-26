@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"log"
 	"net"
@@ -23,7 +22,6 @@ func main() {
 	serverId := getServerId(env)
 	config := persistence.GetDbConfig(env)
 	db := persistence.NewDb(config)
-	db.SetCurrentTerm(context.Background(), consts.TermInitialValue)
 	server := raft.Server{AppRepository: &db}
 	server.StartServer(serverId)
 	api.IdentifyServer(server.Id, isLocalEnvironment(env))
