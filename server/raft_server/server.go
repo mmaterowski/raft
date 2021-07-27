@@ -2,7 +2,9 @@ package raft_server
 
 import (
 	"context"
+	"database/sql"
 	"log"
+	"sync"
 
 	"github.com/mmaterowski/raft/consts"
 	"github.com/mmaterowski/raft/entry"
@@ -20,6 +22,7 @@ type Server struct {
 	Id                 string
 	VotedFor           string
 	AppRepository
+	mu sync.Mutex
 }
 
 func (s *Server) StartServer(id string) {
@@ -33,9 +36,12 @@ func (s *Server) StartServer(id string) {
 	log.Print("Starting server...")
 	s.VotedFor, _ = s.AppRepository.GetVotedFor(context.Background())
 	s.CurrentTerm, _ = s.AppRepository.GetCurrentTerm(context.Background())
-	stateRebuilt := s.RebuildStateFromLog()
-	if !stateRebuilt {
-		log.Panic("Couldn't rebuild state")
+	//Kim is always a leader, change when election module implemented
+	if id == consts.KimId {
+		stateRebuilt := s.RebuildStateFromLog()
+		if !stateRebuilt {
+			log.Panic("Couldn't rebuild state")
+		}
 	}
 
 	//setElectionTimer?
@@ -50,4 +56,33 @@ func (s *Server) RebuildStateFromLog() bool {
 	}
 	log.Print("Log successfully rebuilt. Entries: ", entries)
 	return true
+}
+
+func (s *Server) CommitEntries(leaderCommitIndex int) error {
+	ctx := context.Background()
+	for leaderCommitIndex != s.CommitIndex {
+		//TODO Optimize:Get all entries at once
+		log.Print("Inisde CommitEntries")
+		log.Print("Server commit index: ", s.CommitIndex)
+		nextEntryIndexToCommit := s.CommitIndex + 1
+		entry, err := s.AppRepository.GetEntryAtIndex(ctx, nextEntryIndexToCommit)
+		if err != nil {
+			log.Println("Error while commiting entry to  state:")
+			if err == sql.ErrNoRows {
+				log.Print("Follower does not have yet all entries in log")
+			}
+			log.Println(err)
+			if s.ServerType == structs.Leader {
+				s.ServerType = structs.Follower
+				log.Printf("Server state set Leader->Follower")
+			}
+		} else {
+			log.Print("Commiting new entry to state. Key: ", entry.Key, " Entry: ", entry)
+			(*s.State)[entry.Key] = *entry
+			s.CommitIndex++
+
+		}
+
+	}
+	return nil
 }

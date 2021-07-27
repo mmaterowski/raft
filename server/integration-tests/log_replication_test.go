@@ -71,8 +71,7 @@ func TestMain(m *testing.M) {
 }
 
 func TestCheckAvailability(t *testing.T) {
-	port := "6969"
-	resp, err := http.Get(fmt.Sprintf("http://localhost:%s", port))
+	resp, err := http.Get(fmt.Sprintf("http://localhost:%d", consts.KimPort))
 	if err != nil {
 		t.Error(err)
 	}
@@ -94,25 +93,22 @@ func TestPutKeyIsReplicatedOnAllMachines(t *testing.T) {
 	deleteEntriesFromAllServers()
 	key := "key"
 	value := 3
-	kimPort := "6969"
-	resp, _ := http.Get(fmt.Sprintf("http://localhost:%s/put/%s/%d", kimPort, key, value))
+	resp, _ := http.Get(fmt.Sprintf("http://localhost:%d/put/%s/%d", consts.KimPort, key, value))
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("Expected status code %d. Got %d.", http.StatusOK, resp.StatusCode)
 	}
-
 	var r api.ValueResponse
-	getKeyResponse, _ := http.Get(fmt.Sprintf("http://localhost:%s/get/%s", kimPort, key))
+	getKeyResponse, _ := http.Get(fmt.Sprintf("http://localhost:%d/get/%s", consts.KimPort, key))
 	err := json.NewDecoder(getKeyResponse.Body).Decode(&r)
 	if err != nil {
 		t.Error("Couldn't read response body")
 	}
 
 	if r.Value != value {
-		t.Errorf("Get request to: %s. Expected %d but got %d", kimPort, value, r.Value)
+		t.Errorf("Get request to: %d. Expected %d but got %d", consts.KimPort, value, r.Value)
 	}
-
-	otherPort := "6970"
-	getKeyResponse, _ = http.Get(fmt.Sprintf("http://localhost:%s/get/%s", otherPort, key))
+	time.Sleep(consts.HeartbeatInterval + 1*time.Second)
+	getKeyResponse, _ = http.Get(fmt.Sprintf("http://localhost:%d/get/%s", consts.RickyPort, key))
 
 	err = json.NewDecoder(getKeyResponse.Body).Decode(&r)
 	if err != nil {
@@ -120,7 +116,7 @@ func TestPutKeyIsReplicatedOnAllMachines(t *testing.T) {
 	}
 
 	if r.Value != value {
-		t.Errorf("Get request to: %s. Expected %d but got %d", otherPort, value, r.Value)
+		t.Errorf("Get request to: %d. Expected %d but got %d", consts.RickyPort, value, r.Value)
 	}
 }
 func TestLogRebuiltProperlyAfterFailure(t *testing.T) {
@@ -129,10 +125,9 @@ func TestLogRebuiltProperlyAfterFailure(t *testing.T) {
 	key2 := "key2"
 	key3 := "key3"
 	value := 1
-	kimPort := "6969"
-	_, _ = http.Get(fmt.Sprintf("http://localhost:%s/put/%s/%d", kimPort, key1, value))
-	_, _ = http.Get(fmt.Sprintf("http://localhost:%s/put/%s/%d", kimPort, key2, value+1))
-	_, _ = http.Get(fmt.Sprintf("http://localhost:%s/put/%s/%d", kimPort, key3, value+2))
+	_, _ = http.Get(fmt.Sprintf("http://localhost:%d/put/%s/%d", consts.KimPort, key1, value))
+	_, _ = http.Get(fmt.Sprintf("http://localhost:%d/put/%s/%d", consts.KimPort, key2, value+1))
+	_, _ = http.Get(fmt.Sprintf("http://localhost:%d/put/%s/%d", consts.KimPort, key3, value+2))
 
 	execError := compose.WithCommand([]string{"restart", "-t", "30", "kim"}).Invoke()
 	time.Sleep(5 * time.Second)
@@ -140,7 +135,7 @@ func TestLogRebuiltProperlyAfterFailure(t *testing.T) {
 		t.Error("Error restarting service...", execError)
 	}
 
-	getKeyResponse, _ := http.Get(fmt.Sprintf("http://localhost:%s/get/%s", kimPort, key3))
+	getKeyResponse, _ := http.Get(fmt.Sprintf("http://localhost:%d/get/%s", consts.KimPort, key3))
 	var r api.ValueResponse
 	err := json.NewDecoder(getKeyResponse.Body).Decode(&r)
 	if err != nil {
@@ -148,7 +143,7 @@ func TestLogRebuiltProperlyAfterFailure(t *testing.T) {
 	}
 
 	if r.Value != value+2 {
-		t.Errorf("Get request to: %s. Expected %d but got %d. Log rebuild failed", kimPort, value, r.Value)
+		t.Errorf("Get request to: %d. Expected %d but got %d. Log rebuild failed", consts.KimPort, value, r.Value)
 	}
 }
 
@@ -160,27 +155,26 @@ func TestLeaderForcingFollowerToSyncLog(t *testing.T) {
 	outOfSyncKey := "key4"
 	expectedOutOfSyncKeyValue := 10
 	value := 1
-	kimPort := "6969"
-	_, _ = http.Get(fmt.Sprintf("http://localhost:%s/put/%s/%d", kimPort, key1, value))
-	_, _ = http.Get(fmt.Sprintf("http://localhost:%s/put/%s/%d", kimPort, key2, value+1))
-	_, _ = http.Get(fmt.Sprintf("http://localhost:%s/put/%s/%d", kimPort, key3, value+2))
+	_, _ = http.Get(fmt.Sprintf("http://localhost:%d/put/%s/%d", consts.KimPort, key1, value))
+	_, _ = http.Get(fmt.Sprintf("http://localhost:%d/put/%s/%d", consts.KimPort, key2, value+1))
+	_, _ = http.Get(fmt.Sprintf("http://localhost:%d/put/%s/%d", consts.KimPort, key3, value+2))
 
 	var r api.ValueResponse
-	getKeyResponse, _ := http.Get(fmt.Sprintf("http://localhost:%s/get/%s", kimPort, key1))
+	getKeyResponse, _ := http.Get(fmt.Sprintf("http://localhost:%d/get/%s", consts.KimPort, key1))
 	err := json.NewDecoder(getKeyResponse.Body).Decode(&r)
 	if err != nil {
 		t.Error("Couldn't read response body")
 	}
 
 	if r.Value != value {
-		t.Errorf("Get request to: %s. Expected %d but got %d", kimPort, value, r.Value)
+		t.Errorf("Get request to: %d. Expected %d but got %d", consts.KimPort, value, r.Value)
 	}
 
 	otherPort := "6970"
 	_, _ = http.Get(fmt.Sprintf("http://localhost:%s/backdoor/put/%s/%d", otherPort, outOfSyncKey, value))
 	time.Sleep(2 * time.Second)
 
-	_, _ = http.Get(fmt.Sprintf("http://localhost:%s/put/%s/%d", kimPort, outOfSyncKey, expectedOutOfSyncKeyValue))
+	_, _ = http.Get(fmt.Sprintf("http://localhost:%d/put/%s/%d", consts.KimPort, outOfSyncKey, expectedOutOfSyncKeyValue))
 	time.Sleep(2 * time.Second)
 
 	getKeyResponse, _ = http.Get(fmt.Sprintf("http://localhost:%s/get/%s", otherPort, outOfSyncKey))
@@ -200,10 +194,9 @@ func TestLogSyncedAfterServiceNotWorkingForAWhile(t *testing.T) {
 	key2 := "key2"
 	key3 := "key3"
 	value := 1
-	kimPort := "6969"
-	_, _ = http.Get(fmt.Sprintf("http://localhost:%s/put/%s/%d", kimPort, key1, value))
-	_, _ = http.Get(fmt.Sprintf("http://localhost:%s/put/%s/%d", kimPort, key2, value+1))
-	_, _ = http.Get(fmt.Sprintf("http://localhost:%s/put/%s/%d", kimPort, key3, value+2))
+	_, _ = http.Get(fmt.Sprintf("http://localhost:%d/put/%s/%d", consts.KimPort, key1, value))
+	_, _ = http.Get(fmt.Sprintf("http://localhost:%d/put/%s/%d", consts.KimPort, key2, value+1))
+	_, _ = http.Get(fmt.Sprintf("http://localhost:%d/put/%s/%d", consts.KimPort, key3, value+2))
 
 	execError := compose.WithCommand([]string{"stop", "-t", "30", "ricky"}).Invoke()
 	if execError.Error != nil {
@@ -211,7 +204,7 @@ func TestLogSyncedAfterServiceNotWorkingForAWhile(t *testing.T) {
 	}
 
 	rickyAsleepNewValue := 420
-	_, _ = http.Get(fmt.Sprintf("http://localhost:%s/put/%s/%d", kimPort, key3, rickyAsleepNewValue))
+	_, _ = http.Get(fmt.Sprintf("http://localhost:%d/put/%s/%d", consts.KimPort, key3, rickyAsleepNewValue))
 
 	execError = compose.WithCommand([]string{"start", "ricky"}).Invoke()
 	time.Sleep(5 * time.Second)
@@ -221,8 +214,9 @@ func TestLogSyncedAfterServiceNotWorkingForAWhile(t *testing.T) {
 	}
 
 	newValueAfterRickyIsUp := 666
-	_, _ = http.Get(fmt.Sprintf("http://localhost:%s/put/%s/%d", kimPort, key1, newValueAfterRickyIsUp))
-	time.Sleep(2 * time.Second)
+	time.Sleep(consts.HeartbeatInterval + 1*time.Second)
+	_, _ = http.Get(fmt.Sprintf("http://localhost:%d/put/%s/%d", consts.KimPort, key1, newValueAfterRickyIsUp))
+	time.Sleep(consts.HeartbeatInterval + 1*time.Second)
 	getKeyResponse, _ := http.Get(fmt.Sprintf("http://localhost:%d/get/%s", consts.RickyPort, key3))
 	var r api.ValueResponse
 	err := json.NewDecoder(getKeyResponse.Body).Decode(&r)
@@ -269,6 +263,74 @@ func TestFollowerMissingOneEntry(t *testing.T) {
 	_ = json.NewDecoder(getKeyResponse.Body).Decode(&r)
 	if r.Value != missingKeyValue {
 		t.Errorf("Expected follower to sync missing value")
+	}
+
+	getKeyResponse, _ = http.Get(fmt.Sprintf("http://localhost:%d/get/%s", consts.RickyPort, newKey))
+	_ = json.NewDecoder(getKeyResponse.Body).Decode(&r)
+	if r.Value != newKeyValue {
+		t.Errorf("Expected follower to have correct last entry value")
+	}
+}
+
+func TestFollowerMissingMultipleEntries(t *testing.T) {
+	swapTestDataAndRestartContainers("./test data/missing-multiple-entries.db")
+	missingKey := "hejka"
+	missingKeyValue := 12
+	getKeyResponse, _ := http.Get(fmt.Sprintf("http://localhost:%d/get/%s", consts.RickyPort, missingKey))
+	var r api.ValueResponse
+	_ = json.NewDecoder(getKeyResponse.Body).Decode(&r)
+	if r.Value == missingKeyValue {
+		t.Errorf("Expected key to be missing")
+	}
+
+	newKey := "newKey"
+	newKeyValue := 20
+	_, _ = http.Get(fmt.Sprintf("http://localhost:%d/put/%s/%d", consts.KimPort, newKey, newKeyValue))
+	time.Sleep(2 * time.Second)
+	getKeyResponse, _ = http.Get(fmt.Sprintf("http://localhost:%d/get/%s", consts.KimPort, newKey))
+	_ = json.NewDecoder(getKeyResponse.Body).Decode(&r)
+	if r.Value != newKeyValue {
+		t.Errorf("Expected value to be updated")
+	}
+
+	getKeyResponse, _ = http.Get(fmt.Sprintf("http://localhost:%d/get/%s", consts.RickyPort, missingKey))
+	_ = json.NewDecoder(getKeyResponse.Body).Decode(&r)
+	if r.Value != missingKeyValue {
+		t.Errorf("Expected follower to sync missing value")
+	}
+
+	getKeyResponse, _ = http.Get(fmt.Sprintf("http://localhost:%d/get/%s", consts.RickyPort, newKey))
+	_ = json.NewDecoder(getKeyResponse.Body).Decode(&r)
+	if r.Value != newKeyValue {
+		t.Errorf("Expected follower to have correct last entry value")
+	}
+}
+
+func TestFollowerHasExtraEntry(t *testing.T) {
+	swapTestDataAndRestartContainers("./test data/missing-multiple-entries.db")
+	extraKey := "d"
+	extraKeyValue := 19
+	getKeyResponse, _ := http.Get(fmt.Sprintf("http://localhost:%d/get/%s", consts.RickyPort, extraKey))
+	var r api.ValueResponse
+	_ = json.NewDecoder(getKeyResponse.Body).Decode(&r)
+	if r.Value == extraKeyValue {
+		t.Errorf("Expected extra key to be present")
+	}
+
+	newKey := "newKey"
+	newKeyValue := 20
+	_, _ = http.Get(fmt.Sprintf("http://localhost:%d/put/%s/%d", consts.KimPort, newKey, newKeyValue))
+	time.Sleep(2 * time.Second)
+	getKeyResponse, _ = http.Get(fmt.Sprintf("http://localhost:%d/get/%s", consts.KimPort, newKey))
+	_ = json.NewDecoder(getKeyResponse.Body).Decode(&r)
+	if r.Value != newKeyValue {
+		t.Errorf("Expected value to be updated")
+	}
+
+	getKeyResponse, _ = http.Get(fmt.Sprintf("http://localhost:%d/get/%s", consts.RickyPort, extraKey))
+	_ = json.NewDecoder(getKeyResponse.Body).Decode(&r)
+	if r.Value != extraKeyValue {
+		t.Errorf("Expected follower to delete extra value")
 	}
 
 	getKeyResponse, _ = http.Get(fmt.Sprintf("http://localhost:%d/get/%s", consts.RickyPort, newKey))

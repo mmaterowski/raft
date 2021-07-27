@@ -1,10 +1,12 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net"
 	"os"
+	"time"
 
 	api "github.com/mmaterowski/raft/api"
 	"github.com/mmaterowski/raft/consts"
@@ -16,30 +18,58 @@ import (
 	"google.golang.org/grpc"
 )
 
+var server raft.Server
+
 func main() {
 	helpers.PrintAsciiHelloString()
 	env := getEnv()
 	serverId := getServerId(env)
 	config := persistence.GetDbConfig(env)
 	db := persistence.NewDb(config)
-	server := raft.Server{AppRepository: &db}
+	server = raft.Server{AppRepository: &db}
 	server.StartServer(serverId)
-	api.IdentifyServer(server.Id, isLocalEnvironment(env))
+	others := api.IdentifyServer(server.Id, isLocalEnvironment(env))
 
 	go func() {
 		err := handleRPC(serverId, server)
 		helpers.Check(err)
 	}()
 	client := rpc.Client{}
-	go func() {
+	go func(env string) {
 		client.SetupRpcClient(server.Id)
-	}()
+		//Until election implemented kim is the leader
+		if serverId == consts.KimId {
+			StartHeartbeat(client, others)
+		}
+	}(env)
 
 	api.RaftServerReference = &server
 	api.RpcClientReference = &client
 	apiPort := getApiPort(env)
+
 	api.HandleRequests(apiPort)
 
+}
+
+func StartHeartbeat(c rpc.Client, others []string) {
+	ticker := time.NewTicker(consts.HeartbeatInterval)
+	quit := make(chan struct{})
+	go func() {
+		for {
+			select {
+			case <-ticker.C:
+				log.Print("Sending heartbeat")
+				for _, otherServer := range others {
+					go func(commitIndex int, term int, id string, otherServer string) {
+						request := protoBuff.AppendEntriesRequest{LeaderCommitIndex: int32(commitIndex), Term: int32(term), LeaderId: id}
+						c.GetClientFor(otherServer).AppendEntries(context.Background(), &request)
+					}(server.CommitIndex, server.CurrentTerm, server.Id, otherServer)
+				}
+			case <-quit:
+				ticker.Stop()
+			}
+		}
+	}()
 }
 
 func getApiPort(env string) string {
