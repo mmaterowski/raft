@@ -31,7 +31,7 @@ func main() {
 	others := api.IdentifyServer(server.Id, isLocalEnvironment(env))
 
 	go func() {
-		err := handleRPC(serverId, server)
+		err := handleRPC(serverId, &server)
 		helpers.Check(err)
 	}()
 	client := rpc.Client{}
@@ -58,9 +58,9 @@ func StartHeartbeat(c rpc.Client, others []string) {
 		for {
 			select {
 			case <-ticker.C:
-				log.Print("Sending heartbeat")
 				for _, otherServer := range others {
 					go func(commitIndex int, term int, id string, otherServer string) {
+						log.Print("Sending heartbeat. Leader commit index: ", commitIndex)
 						request := protoBuff.AppendEntriesRequest{LeaderCommitIndex: int32(commitIndex), Term: int32(term), LeaderId: id}
 						c.GetClientFor(otherServer).AppendEntries(context.Background(), &request)
 					}(server.CommitIndex, server.CurrentTerm, server.Id, otherServer)
@@ -107,12 +107,12 @@ func isLocalEnvironment(env string) bool {
 	return env == consts.LocalWithPersistence || env == consts.Local
 }
 
-func handleRPC(serverId string, serverReference raft.Server) error {
+func handleRPC(serverId string, serverReference *raft.Server) error {
 	port := 6960
 	lis, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%d", port))
 	helpers.Check(err)
 	grpcServer := grpc.NewServer()
-	protoBuff.RegisterRaftRpcServer(grpcServer, &rpc.Server{Server: serverReference})
+	protoBuff.RegisterRaftRpcServer(grpcServer, &rpc.Server{Server: *serverReference})
 	log.Printf("RPC listening on port: %s", lis.Addr().String())
 	return grpcServer.Serve(lis)
 }

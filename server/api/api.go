@@ -7,7 +7,6 @@ import (
 	"log"
 	"net/http"
 	"strconv"
-	"sync"
 	"time"
 
 	"github.com/mmaterowski/raft/consts"
@@ -25,14 +24,11 @@ import (
 	"gopkg.in/matryer/respond.v1"
 )
 
-var laszloId = "Laszlo"
-var rickyId = "Ricky"
-var kimId = "Kim"
 var others []string
 var RaftServerReference *raftServer.Server
 var RpcClientReference *Client
 var retryIntervalValue = 1 * time.Second
-var cancelHandlesForOngoingSyncRequest []context.CancelFunc
+var cancelHandlesForOngoingSyncRequest = make(map[string]context.CancelFunc)
 
 type StatusResponse struct {
 	Status structs.ServerType
@@ -49,17 +45,17 @@ type PutResponse struct {
 func IdentifyServer(serverId string, local bool) []string {
 
 	if local {
-		others = append(others, laszloId, rickyId)
+		others = append(others, consts.LaszloId, consts.RickyId)
 		return others
 	}
 
 	switch serverId {
 	case consts.KimId:
-		others = append(others, laszloId, rickyId)
+		others = append(others, consts.LaszloId, consts.RickyId)
 	case consts.RickyId:
-		others = append(others, laszloId, kimId)
+		others = append(others, consts.LaszloId, consts.KimId)
 	case consts.LaszloId:
-		others = append(others, rickyId, kimId)
+		others = append(others, consts.RickyId, consts.KimId)
 	default:
 		log.Panic("Couldn't identify RaftServerReference")
 	}
@@ -118,6 +114,10 @@ func AcceptLogEntry(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	w.Header().Set("Content-Type", "application/json")
 	key, value, err := getKeyAndValue(r)
+	if key == "" {
+		return
+	}
+
 	Check(err)
 	makeSureLastEntryDataIsAvailable(ctx)
 	entry, persistErr := RaftServerReference.AppRepository.PersistValue(ctx, key, value, RaftServerReference.CurrentTerm)
@@ -132,8 +132,9 @@ func AcceptLogEntry(w http.ResponseWriter, r *http.Request) {
 
 	entries := []*raft_rpc.Entry{}
 	entries = append(entries, &pb.Entry{Index: int32(entry.Index), Value: int32(entry.Value), Key: entry.Key, TermNumber: int32(entry.TermNumber)})
+
 	cancelOngoingSyncRequest()
-	orderFollowersToSyncTheirLog(ctx, entries)
+	orderFollowersToSyncTheirLog(context.Background(), entries)
 
 	(*RaftServerReference.State)[entry.Key] = *entry
 	RaftServerReference.CommitIndex = entry.Index
@@ -143,28 +144,30 @@ func AcceptLogEntry(w http.ResponseWriter, r *http.Request) {
 
 func cancelOngoingSyncRequest() {
 	if len(cancelHandlesForOngoingSyncRequest) > 0 {
-		log.Printf("Cancelling sync requests")
+		log.Print("Cancelling sync requests: ", len(cancelHandlesForOngoingSyncRequest))
 		for _, cancelFunction := range cancelHandlesForOngoingSyncRequest {
-			cancelFunction()
+			if cancelFunction != nil {
+				cancelFunction()
+			}
 		}
-		cancelHandlesForOngoingSyncRequest = []context.CancelFunc{}
+		cancelHandlesForOngoingSyncRequest = make(map[string]context.CancelFunc)
 	}
+
 }
 
 func orderFollowersToSyncTheirLog(ctx context.Context, entries []*raft_rpc.Entry) {
-	var wg sync.WaitGroup
-
-	wg.Add((len(others) / 2))
+	c := make(chan struct{})
 
 	for _, otherServer := range others {
 		go func(leaderId string, previousEntryIndex int, previousEntryTerm int, commitIndex int, otherServer string) {
 			ctx, cancel := context.WithCancel(ctx)
-			cancelHandlesForOngoingSyncRequest = append(cancelHandlesForOngoingSyncRequest, cancel)
+			cancelHandlesForOngoingSyncRequest[otherServer] = cancel
 			appendEntriesRequest := buildAppenEntriesRequest(previousEntryIndex, previousEntryTerm, entries, commitIndex)
 			client := RpcClientReference.GetClientFor(otherServer)
 			log.Print("Sending append entries request to: ", otherServer)
-			reply, cancelled := retryUntilNoErrorReceived(client, ctx, appendEntriesRequest)
+			reply, cancelled := retryUntilNoErrorReceived(client, ctx, appendEntriesRequest, otherServer)
 			if cancelled {
+				log.Print("Append entries request cancelled")
 				return
 			}
 			for !reply.Success {
@@ -178,19 +181,26 @@ func orderFollowersToSyncTheirLog(ctx context.Context, entries []*raft_rpc.Entry
 				}
 				appendEntriesRequest.PreviousLogTerm = int32(previousEntry.TermNumber)
 				appendEntriesRequest.Entries = append([]*pb.Entry{{Index: int32(previousEntry.Index), Value: int32(previousEntry.Value), Key: previousEntry.Key, TermNumber: int32(previousEntry.TermNumber)}}, appendEntriesRequest.Entries...)
-				reply, cancelled = retryUntilNoErrorReceived(client, ctx, appendEntriesRequest)
+				reply, cancelled = retryUntilNoErrorReceived(client, ctx, appendEntriesRequest, otherServer)
 				if cancelled {
+					log.Print("Append entries request cancelled")
 					return
 				}
 			}
 
 			if reply != nil {
-				log.Print("Follower responded to sync request", reply.String())
+				log.Printf("Follower %s responded to sync request: %s", otherServer, reply.String())
 			}
-			defer wg.Done()
+
+			defer func() {
+				c <- struct{}{}
+			}()
 		}(RaftServerReference.Id, RaftServerReference.PreviousEntryIndex, RaftServerReference.PreviousEntryTerm, RaftServerReference.CommitIndex, otherServer)
 	}
-	wg.Wait()
+	for i := 0; i < (len(others) / 2); i++ {
+		log.Print("Waiting for goroutine to finish work. i: ", i)
+		<-c
+	}
 
 }
 
@@ -199,7 +209,7 @@ func buildAppenEntriesRequest(previousEntryIndex int, previousEntryTerm int, ent
 	return &appendEntriesRequest
 }
 
-func retryUntilNoErrorReceived(client pb.RaftRpcClient, ctx context.Context, appendEntriesRequest *pb.AppendEntriesRequest) (*pb.AppendEntriesReply, bool) {
+func retryUntilNoErrorReceived(client pb.RaftRpcClient, ctx context.Context, appendEntriesRequest *pb.AppendEntriesRequest, serverName string) (*pb.AppendEntriesReply, bool) {
 	reply, rpcRequestError := client.AppendEntries(ctx, appendEntriesRequest, grpc.EmptyCallOption{})
 	if rpcRequestError != nil {
 		for rpcRequestError != nil {
@@ -207,16 +217,17 @@ func retryUntilNoErrorReceived(client pb.RaftRpcClient, ctx context.Context, app
 			select {
 			case <-time.After(retryIntervalValue):
 				log.Print("Retrying with delay...", retryIntervalValue)
-				reply, rpcRequestError = client.AppendEntries(ctx, appendEntriesRequest, grpc.EmptyCallOption{})
+				reply, rpcRequestError = client.AppendEntries(context.Background(), appendEntriesRequest, grpc.EmptyCallOption{})
 			case <-ctx.Done():
 				log.Print("New request arrived, cancelling sync request")
+				cancelHandlesForOngoingSyncRequest[serverName] = nil
 				return nil, true
 			}
 
 		}
 	}
-	log.Printf("Returtning from retryUntilNoErrorReceived")
-	log.Print("Reply: ", reply, " Error:", rpcRequestError)
+	cancelHandlesForOngoingSyncRequest[serverName] = nil
+	log.Print("Append entries success: ", reply, " Error:", rpcRequestError)
 	return reply, false
 }
 

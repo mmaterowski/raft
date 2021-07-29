@@ -51,6 +51,7 @@ func (s *Server) AppendEntries(ctx context.Context, in *pb.AppendEntriesRequest)
 
 	entries := mapRaftEntriesToEntries(in.Entries)
 	log.Print("Conditions satisfied. Persisting entries", entries)
+	//TUTAJ LOCKA TRZEBA DOJEBAĆ BO ŚIĘ NIE SPINA READ W COMMIT ENTRIES
 	lastAppendedEntry, err := s.Server.AppRepository.PersistValues(ctx, entries)
 
 	if err != nil {

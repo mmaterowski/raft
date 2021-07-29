@@ -59,6 +59,9 @@ func (s *Server) RebuildStateFromLog() bool {
 }
 
 func (s *Server) CommitEntries(leaderCommitIndex int) error {
+	if leaderCommitIndex == 0 {
+		return nil
+	}
 	ctx := context.Background()
 	for leaderCommitIndex != s.CommitIndex {
 		//TODO Optimize:Get all entries at once
@@ -67,15 +70,17 @@ func (s *Server) CommitEntries(leaderCommitIndex int) error {
 		nextEntryIndexToCommit := s.CommitIndex + 1
 		entry, err := s.AppRepository.GetEntryAtIndex(ctx, nextEntryIndexToCommit)
 		if err != nil {
-			log.Println("Error while commiting entry to  state:")
+			log.Println("Error while commiting entry to  state.")
 			if err == sql.ErrNoRows {
 				log.Print("Follower does not have yet all entries in log")
+				break
 			}
 			log.Println(err)
 			if s.ServerType == structs.Leader {
 				s.ServerType = structs.Follower
 				log.Printf("Server state set Leader->Follower")
 			}
+			break
 		} else {
 			log.Print("Commiting new entry to state. Key: ", entry.Key, " Entry: ", entry)
 			(*s.State)[entry.Key] = *entry

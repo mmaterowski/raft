@@ -214,10 +214,11 @@ func TestLogSyncedAfterServiceNotWorkingForAWhile(t *testing.T) {
 	}
 
 	newValueAfterRickyIsUp := 666
-	time.Sleep(consts.HeartbeatInterval + 1*time.Second)
 	_, _ = http.Get(fmt.Sprintf("http://localhost:%d/put/%s/%d", consts.KimPort, key1, newValueAfterRickyIsUp))
-	time.Sleep(consts.HeartbeatInterval + 1*time.Second)
+	time.Sleep(1 * time.Second)
 	getKeyResponse, _ := http.Get(fmt.Sprintf("http://localhost:%d/get/%s", consts.RickyPort, key3))
+	time.Sleep(consts.HeartbeatInterval + 1*time.Second)
+
 	var r api.ValueResponse
 	err := json.NewDecoder(getKeyResponse.Body).Decode(&r)
 	if err != nil {
