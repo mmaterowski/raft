@@ -8,6 +8,7 @@ require (
 	github.com/gorilla/mux v1.8.0
 	github.com/matryer/respond v1.0.1 // indirect
 	github.com/mattn/go-sqlite3 v1.14.8
+	github.com/stretchr/testify v1.7.0 // indirect
 	github.com/testcontainers/testcontainers-go v0.11.1
 	golang.org/x/net v0.0.0-20201224014010-6772e930b67b // indirect
 	google.golang.org/grpc v1.39.0

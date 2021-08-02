@@ -8,6 +8,7 @@ import (
 	"log"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/mmaterowski/raft/consts"
 	"github.com/mmaterowski/raft/entry"
@@ -19,6 +20,8 @@ type SqlLiteRepository struct {
 	handle *sql.DB
 	uniqueEntryId string
 }
+
+var lock sync.Mutex
 
 var (
 	ErrCantConnect             = errors.New("error connecting to SQL")
@@ -49,6 +52,8 @@ func NewSqlLiteRepository(dbPath string) (SqlLiteRepository, error) {
 }
 
 func (s SqlLiteRepository) PersistValue(ctx context.Context, key string, value int, termNumber int) (*entry.Entry, error) {
+	lock.Lock()
+	defer lock.Unlock()
 	insertStatement, _ := s.handle.Prepare("INSERT INTO Entries (Value, Key, TermNumber) VALUES (?, ?, ?)")
 	insertResult, err := insertStatement.Exec(value, key, termNumber)
 
@@ -66,6 +71,8 @@ func (s SqlLiteRepository) PersistValue(ctx context.Context, key string, value i
 }
 
 func (s SqlLiteRepository) PersistValues(ctx context.Context, entries []entry.Entry) (*entry.Entry, error) {
+	lock.Lock()
+	defer lock.Unlock()
 	if len(entries) == 0 {
 		return &entry.Entry{}, nil
 	}
@@ -125,7 +132,6 @@ func (db SqlLiteRepository) GetCurrentTerm(ctx context.Context) (int, error) {
 	if err != nil {
 		log.Print(ErrQueryingRow, err)
 	}
-
 	currentTermNumber, convError := strconv.Atoi(sqlRes)
 	if convError != nil {
 		return currentTermNumber, convError
@@ -223,8 +229,15 @@ func (db SqlLiteRepository) DeleteAllEntriesStartingFrom(ctx context.Context, in
 		return ErrInvalidArgument
 	}
 
+	lock.Lock()
+	defer lock.Unlock()
+
+	tx, err := db.handle.Begin()
+	if err != nil {
+		return err
+	}
 	delete := fmt.Sprintf(`DELETE FROM Entries Where "Index" >= %d`, index)
-	statement, _ := db.handle.Prepare(delete)
+	statement, _ := tx.Prepare(delete)
 	_, deleteErr := statement.Exec()
 	if deleteErr != nil {
 		return deleteErr
@@ -232,9 +245,9 @@ func (db SqlLiteRepository) DeleteAllEntriesStartingFrom(ctx context.Context, in
 	autoincrementResetStatement := `UPDATE "sqlite_sequence"
 	SET "seq" = (SELECT COUNT("Index")-1 FROM "Entries")-1
 	WHERE name = "Entries"`
-	statement, _ = db.handle.Prepare(autoincrementResetStatement)
+	statement, _ = tx.Prepare(autoincrementResetStatement)
 	_, incErr := statement.Exec()
-
+	tx.Commit()
 	return incErr
 }
 

@@ -27,14 +27,19 @@ func (s *Server) AppendEntries(ctx context.Context, in *pb.AppendEntriesRequest)
 		return failReply, nil
 	}
 
+	if s.CommitIndex < int(in.LeaderCommitIndex) {
+		log.Print("Gonna commit entries. Leader commit index: ", int(in.LeaderCommitIndex), "Server commit index: ", s.CommitIndex)
+		go func(leaderCommitIndex int) {
+			s.Server.CommitEntries(leaderCommitIndex)
+
+		}(int(in.LeaderCommitIndex))
+	}
+
 	if len(in.Entries) == 0 {
 		log.Printf("Heartbeat received")
-		if s.CommitIndex < int(in.LeaderCommitIndex) {
-			log.Print("Leader commit index: ", int(in.LeaderCommitIndex), "Server commit index: ", s.CommitIndex)
-			s.Server.CommitEntries(int(in.LeaderCommitIndex))
-		}
 		return successReply, nil
 	}
+
 	log.Print("Leader PreviousLogIndex: ", in.PreviousLogIndex)
 	entry, _ := s.Server.AppRepository.GetLastEntry(ctx)
 	lastEntryInSync := isLastEntryInSync(int(in.PreviousLogIndex), int(in.PreviousLogTerm), *entry)
