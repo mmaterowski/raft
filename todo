@@ -1,28 +1,33 @@
-Log replication:
+Leader election:
+    ☐ After persistence is working properly plan out election
+    ☐ Where to set term?
+    ☐ Heartbeat
+    ☐ Election timeout - what's right value
+    ☐ Do I ever need to stop election ticker?
+    
+
+✔ Log replication: @done(21-08-02 10:16)
     ✔ Handle multiple entries append @done(21-07-23 07:11)
     ✔ Change persistence provider - failed, no alternative @done(21-07-23 09:08)
     ✔ Leader forces followers to sync their logs @done(21-07-23 11:26)
     ✔ Log rebuilds properly after failure @done(21-07-24 09:55)
     ✔ Log synces properly after failure @done(21-07-24 09:55)
-    ☐ Work out different log testing scenarios and implement them all (paper) @today @critical 
-    ☐ Retry append requets call - consider network problems / unavailable clients
-    ☐ Which term return from appendEntriesRequest?
-    ☐ Finish implementing log replication
+    ✔ Work out different log testing scenarios and implement them all (paper) @today @critical @done(21-08-02 10:07)
+    ✔ Retry append requets call - consider network problems / unavailable clients @done(21-08-02 10:07)
+    ✔ Which term return from appendEntriesRequest? @done(21-08-02 10:08)
+    ✔ Finish implementing log replication @done(21-08-02 10:16)
 
 Testing: 
     ✔ Integration Tests running in docker @done(21-07-23 11:29)
     ✔ Probes, tests sometimes fail because of rpc not ready - wait.Http() @done(21-07-24 10:30)
     ✔ Extensive Sql tests @done(21-07-24 09:55)
-    ☐ Do I have timing issues or is it alright, coz' I'm still using manual api calls instead of Leader/Follower logic
-    ☐ Do test run in paralell and is there better way to do setup/teardown @low 
+    ✔ Do I have timing issues or is it alright, coz' I'm still using manual api calls instead of Leader/Follower logic @done(21-08-02 10:17)
+    ☐ Container for unit tests to run in paralell @low 
+    ☐ Container for sequential integraiont tests @high 
+    ☐ make separate docker file for tests
 
 Docker: 
     ☐ go build slow, check out comments from stack
     ☐ store config in .env 
-    ☐ make separate docker file for tests
 
-Leader election:
-    ☐ After persistence is working properly plan out election
-    ☐ Where to set term?
-    ☐ Heartbeat
     

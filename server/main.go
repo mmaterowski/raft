@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"math/rand"
 	"net"
 	"os"
 	"time"
@@ -15,10 +16,11 @@ import (
 	protoBuff "github.com/mmaterowski/raft/raft_rpc"
 	raft "github.com/mmaterowski/raft/raft_server"
 	rpc "github.com/mmaterowski/raft/rpc"
+	"github.com/mmaterowski/raft/structs"
 	"google.golang.org/grpc"
 )
 
-var server raft.Server
+var server *raft.Server
 
 func main() {
 	helpers.PrintAsciiHelloString()
@@ -26,29 +28,57 @@ func main() {
 	serverId := getServerId(env)
 	config := persistence.GetDbConfig(env)
 	db := persistence.NewDb(config)
-	server = raft.Server{AppRepository: &db}
+	server = &raft.Server{AppRepository: &db}
 	server.StartServer(serverId)
 	others := api.IdentifyServer(server.Id, isLocalEnvironment(env))
 
 	go func() {
-		err := handleRPC(serverId, &server)
+		err := handleRPC(serverId, server)
 		helpers.Check(err)
 	}()
 	client := rpc.Client{}
+
 	go func(env string) {
 		client.SetupRpcClient(server.Id)
 		//Until election implemented kim is the leader
+		SetupElection(client, others)
 		if serverId == consts.KimId {
 			StartHeartbeat(client, others)
 		}
 	}(env)
 
-	api.RaftServerReference = &server
+	api.RaftServerReference = server
 	api.RpcClientReference = &client
 	apiPort := getApiPort(env)
 
 	api.HandleRequests(apiPort)
 
+}
+
+func SetupElection(c rpc.Client, others []string) {
+	seed := rand.NewSource(time.Now().UnixNano())
+	electionTimeout := rand.New(seed).Intn(100)*300 + 100
+	log.Printf("Election timeout set to: %d", electionTimeout)
+	server.ElectionTicker = time.NewTicker(consts.HeartbeatInterval + time.Duration(electionTimeout)*time.Millisecond)
+
+	go func() {
+		select {
+		case <-server.ElectionTicker.C:
+			log.Print("Ticker timeout: Start election...")
+			server.CurrentTerm++
+			log.Printf("%s issues Election, incrementing current term to: %d", server.Id, server.CurrentTerm)
+			server.ServerType = structs.Candidate
+
+			for _, otherServer := range others {
+				go func(serverId string) {
+					log.Printf("Request vote from %s", serverId)
+					// request := protoBuff.RequestVoteRequest{Term: int32(server.CurrentTerm), CandidateID: server.Id, LastLogIndex: int32(server.PreviousEntryIndex), LastLogTerm: int32(server.PreviousEntryTerm)}
+					//  reply, err := c.GetClientFor(otherServer).RequestVote(context.Background(), &request)
+				}(otherServer)
+			}
+
+		}
+	}()
 }
 
 func StartHeartbeat(c rpc.Client, others []string) {

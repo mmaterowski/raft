@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"log"
 	"sync"
+	"time"
 
 	"github.com/mmaterowski/raft/consts"
 	"github.com/mmaterowski/raft/entry"
@@ -22,7 +23,8 @@ type Server struct {
 	Id                 string
 	VotedFor           string
 	AppRepository
-	mu sync.Mutex
+	mu             sync.Mutex
+	ElectionTicker *time.Ticker
 }
 
 func (s *Server) StartServer(id string) {

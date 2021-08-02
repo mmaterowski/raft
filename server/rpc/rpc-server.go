@@ -15,14 +15,29 @@ type Server struct {
 	s.Server
 }
 
+func (s *Server) RequestVote(ctx context.Context, in *pb.RequestVoteRequest) (*pb.RequestVoteReply, error) {
+	reply := &pb.RequestVoteReply{Term: int32(s.CurrentTerm), VoteGranted: false}
+	if in.Term < int32(s.CurrentTerm) {
+		return reply, nil
+	}
+	// votedFor, err := s.GetVotedFor(ctx)
+	// if err != nil {
+	// 	return reply, err
+	// }
+	return reply, nil
+}
+
 func (s *Server) AppendEntries(ctx context.Context, in *pb.AppendEntriesRequest) (*pb.AppendEntriesReply, error) {
 	log.Print("__________________________________")
-	log.Print("Appending entries request received")
+	log.Print("Appending entries request received.")
+	if s.ElectionTicker != nil {
+		log.Print("Resetting election timer")
+		s.ElectionTicker.Reset(0)
+	}
 	term := int32(s.Server.CurrentTerm)
 	successReply := &pb.AppendEntriesReply{Success: true, Term: term}
 	failReply := &pb.AppendEntriesReply{Success: false, Term: term}
 
-	log.Printf("Server current term: %d. Request term: %d", s.Server.CurrentTerm, in.Term)
 	if in.Term < int32(s.Server.CurrentTerm) {
 		return failReply, nil
 	}
@@ -33,10 +48,9 @@ func (s *Server) AppendEntries(ctx context.Context, in *pb.AppendEntriesRequest)
 		log.Printf("Heartbeat received")
 		entry, _ = s.Server.AppRepository.GetLastEntry(ctx)
 		lastEntryInSync = isLastEntryInSync(int(in.PreviousLogIndex), int(in.PreviousLogTerm), *entry)
-		if lastEntryInSync {
+
+		if lastEntryInSync && int(in.LeaderCommitIndex) > s.Server.CommitIndex {
 			commitEntries(s, int(in.LeaderCommitIndex))
-		} else {
-			log.Print("Heartbeat: Log not consistent. ")
 		}
 		return successReply, nil
 	}
@@ -75,14 +89,12 @@ func (s *Server) AppendEntries(ctx context.Context, in *pb.AppendEntriesRequest)
 	log.Println(helpers.PrettyPrint(in))
 	return successReply, nil
 }
-
 func commitEntries(s *Server, newCommitIndex int) {
 	log.Print("Gonna commit entries. Leader commit index: ", newCommitIndex, "Server commit index: ", s.CommitIndex)
 	go func(leaderCommitIndex int) {
 		s.Server.CommitEntries(leaderCommitIndex)
 	}(newCommitIndex)
 }
-
 func isLastEntryInSync(leaderLastLogIndex int, leaderLastLogTerm int, lastEntry entry.Entry) bool {
 	if leaderLastLogIndex != 0 {
 		if lastEntry.IsEmpty() {
@@ -95,7 +107,6 @@ func isLastEntryInSync(leaderLastLogIndex int, leaderLastLogTerm int, lastEntry 
 	}
 	return true
 }
-
 func mapRaftEntriesToEntries(rpcEntries []*pb.Entry) []entry.Entry {
 	var entries []entry.Entry
 	for _, raftEntry := range rpcEntries {

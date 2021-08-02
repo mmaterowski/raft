@@ -7,7 +7,6 @@ option go_package = "mati/raft_rpc";
 service RaftRpc {
   rpc AppendEntries (AppendEntriesRequest) returns (AppendEntriesReply) {}
   rpc RequestVote (RequestVoteRequest) returns (RequestVoteReply) {}
-  rpc CommitAvailableEntries (CommitAvailableEntriesRequest) returns (Empty) {}
 }
 
 message Entry {
@@ -18,9 +17,7 @@ message Entry {
 }
 
 message Empty {
-
 }
-
 
 message AppendEntriesRequest  {
   int32 Term = 1;
@@ -48,6 +45,3 @@ message RequestVoteReply{
   bool VoteGranted = 2;
 }
 
-message CommitAvailableEntriesRequest{
-  int32 LeaderCommitIndex = 1;
-}
