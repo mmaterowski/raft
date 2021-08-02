@@ -1,10 +1,9 @@
 Leader election:
-    ☐ After persistence is working properly plan out election
+    ☐ After persistence is working properly plan out election - read paper to the end @today 
     ☐ Where to set term?
     ☐ Heartbeat
     ☐ Election timeout - what's right value
     ☐ Do I ever need to stop election ticker?
-    
 
 ✔ Log replication: @done(21-08-02 10:16)
     ✔ Handle multiple entries append @done(21-07-23 07:11)
@@ -12,7 +11,7 @@ Leader election:
     ✔ Leader forces followers to sync their logs @done(21-07-23 11:26)
     ✔ Log rebuilds properly after failure @done(21-07-24 09:55)
     ✔ Log synces properly after failure @done(21-07-24 09:55)
-    ✔ Work out different log testing scenarios and implement them all (paper) @today @critical @done(21-08-02 10:07)
+    ✔ Work out different log testing scenarios and implement them all (paper) @done(21-08-02 10:07)
     ✔ Retry append requets call - consider network problems / unavailable clients @done(21-08-02 10:07)
     ✔ Which term return from appendEntriesRequest? @done(21-08-02 10:08)
     ✔ Finish implementing log replication @done(21-08-02 10:16)
