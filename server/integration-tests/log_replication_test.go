@@ -15,6 +15,7 @@ import (
 	api "github.com/mmaterowski/raft/api"
 	"github.com/mmaterowski/raft/consts"
 	"github.com/mmaterowski/raft/helpers"
+	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 )
@@ -162,30 +163,19 @@ func TestLeaderForcingFollowerToSyncLog(t *testing.T) {
 	var r api.ValueResponse
 	getKeyResponse, _ := http.Get(fmt.Sprintf("http://localhost:%d/get/%s", consts.KimPort, key1))
 	err := json.NewDecoder(getKeyResponse.Body).Decode(&r)
-	if err != nil {
-		t.Error("Couldn't read response body")
-	}
+	require.NoError(t, err, "Couldn't read resonse body")
+	require.EqualValuesf(t, r.Value, value, "Get request to: %d. Expected %d but got %d", consts.KimPort, value, r.Value)
 
-	if r.Value != value {
-		t.Errorf("Get request to: %d. Expected %d but got %d", consts.KimPort, value, r.Value)
-	}
-
-	otherPort := "6970"
-	_, _ = http.Get(fmt.Sprintf("http://localhost:%s/backdoor/put/%s/%d", otherPort, outOfSyncKey, value))
-	time.Sleep(2 * time.Second)
-
+	otherPort := consts.RickyPort
+	_, _ = http.Get(fmt.Sprintf("http://localhost:%d/backdoor/put/%s/%d", otherPort, outOfSyncKey, value))
 	_, _ = http.Get(fmt.Sprintf("http://localhost:%d/put/%s/%d", consts.KimPort, outOfSyncKey, expectedOutOfSyncKeyValue))
-	time.Sleep(2 * time.Second)
+	time.Sleep(consts.HeartbeatInterval + time.Second + 1)
 
-	getKeyResponse, _ = http.Get(fmt.Sprintf("http://localhost:%s/get/%s", otherPort, outOfSyncKey))
+	getKeyResponse, _ = http.Get(fmt.Sprintf("http://localhost:%d/get/%s", otherPort, outOfSyncKey))
 	err = json.NewDecoder(getKeyResponse.Body).Decode(&r)
-	if err != nil {
-		t.Error("Couldn't read response body")
-	}
+	require.NoError(t, err, "Couldn't read resonse body")
+	require.EqualValuesf(t, r.Value, expectedOutOfSyncKeyValue, "Get request to: %d. Expected %d but got %d", otherPort, value, r.Value)
 
-	if r.Value != expectedOutOfSyncKeyValue {
-		t.Errorf("Get request to: %s. Expected %d but got %d", otherPort, value, r.Value)
-	}
 }
 
 func TestLogSyncedAfterServiceNotWorkingForAWhile(t *testing.T) {
@@ -199,44 +189,29 @@ func TestLogSyncedAfterServiceNotWorkingForAWhile(t *testing.T) {
 	_, _ = http.Get(fmt.Sprintf("http://localhost:%d/put/%s/%d", consts.KimPort, key3, value+2))
 
 	execError := compose.WithCommand([]string{"stop", "-t", "30", "ricky"}).Invoke()
-	if execError.Error != nil {
-		t.Error("Error stopping service...", execError)
-	}
+	require.NoError(t, execError.Error, "Error stopping service...")
 
 	rickyAsleepNewValue := 420
 	_, _ = http.Get(fmt.Sprintf("http://localhost:%d/put/%s/%d", consts.KimPort, key3, rickyAsleepNewValue))
 
 	execError = compose.WithCommand([]string{"start", "ricky"}).Invoke()
-	time.Sleep(5 * time.Second)
-
-	if execError.Error != nil {
-		t.Error("Error starting service...", execError)
-	}
+	time.Sleep(3 * time.Second)
+	require.NoError(t, execError.Error, "Error starting service...")
 
 	newValueAfterRickyIsUp := 666
 	_, _ = http.Get(fmt.Sprintf("http://localhost:%d/put/%s/%d", consts.KimPort, key1, newValueAfterRickyIsUp))
-	time.Sleep(1 * time.Second)
-	getKeyResponse, _ := http.Get(fmt.Sprintf("http://localhost:%d/get/%s", consts.RickyPort, key3))
 	time.Sleep(consts.HeartbeatInterval + 1*time.Second)
+	getKeyResponse, _ := http.Get(fmt.Sprintf("http://localhost:%d/get/%s", consts.RickyPort, key3))
 
 	var r api.ValueResponse
 	err := json.NewDecoder(getKeyResponse.Body).Decode(&r)
-	if err != nil {
-		t.Error("Couldn't read response body")
-	}
-
-	if r.Value != rickyAsleepNewValue {
-		t.Errorf("Get request to: %d. Expected %d but got %d.", consts.RickyPort, rickyAsleepNewValue, r.Value)
-	}
+	require.NoError(t, err, "Couldn't read response body")
+	require.EqualValuesf(t, r.Value, rickyAsleepNewValue, "Get request to: %d. Expected %d but got %d.", consts.RickyPort, rickyAsleepNewValue, r.Value)
 
 	getKeyResponse, _ = http.Get(fmt.Sprintf("http://localhost:%d/get/%s", consts.RickyPort, key1))
 	err = json.NewDecoder(getKeyResponse.Body).Decode(&r)
-	if err != nil {
-		t.Error("Couldn't read response body")
-	}
-	if r.Value != newValueAfterRickyIsUp {
-		t.Errorf("Get request to: %d. Expected %d but got %d.", consts.RickyPort, newValueAfterRickyIsUp, r.Value)
-	}
+	require.NoError(t, err, "Couldn't read response body")
+	require.EqualValuesf(t, r.Value, newValueAfterRickyIsUp, "Get request to: %d. Expected %d but got %d.", consts.RickyPort, newValueAfterRickyIsUp, r.Value)
 }
 
 func TestFollowerMissingOneEntry(t *testing.T) {
@@ -246,31 +221,24 @@ func TestFollowerMissingOneEntry(t *testing.T) {
 	getKeyResponse, _ := http.Get(fmt.Sprintf("http://localhost:%d/get/%s", consts.RickyPort, missingKey))
 	var r api.ValueResponse
 	_ = json.NewDecoder(getKeyResponse.Body).Decode(&r)
-	if r.Value == missingKeyValue {
-		t.Errorf("Expected key to be missing")
-	}
+	require.NotEqualValues(t, r.Value, missingKey, "Expected key to be missing")
 
 	newKey := "newKey"
 	newKeyValue := 20
 	_, _ = http.Get(fmt.Sprintf("http://localhost:%d/put/%s/%d", consts.KimPort, newKey, newKeyValue))
-	time.Sleep(2 * time.Second)
+	time.Sleep(consts.HeartbeatInterval + 1*time.Second)
 	getKeyResponse, _ = http.Get(fmt.Sprintf("http://localhost:%d/get/%s", consts.KimPort, newKey))
 	_ = json.NewDecoder(getKeyResponse.Body).Decode(&r)
-	if r.Value != newKeyValue {
-		t.Errorf("Expected value to be updated")
-	}
+	require.EqualValues(t, r.Value, newKeyValue, "Expected value to be updated")
 
 	getKeyResponse, _ = http.Get(fmt.Sprintf("http://localhost:%d/get/%s", consts.RickyPort, missingKey))
 	_ = json.NewDecoder(getKeyResponse.Body).Decode(&r)
-	if r.Value != missingKeyValue {
-		t.Errorf("Expected follower to sync missing value")
-	}
+	require.EqualValues(t, r.Value, missingKeyValue, "Expected follower to sync missing value")
 
 	getKeyResponse, _ = http.Get(fmt.Sprintf("http://localhost:%d/get/%s", consts.RickyPort, newKey))
 	_ = json.NewDecoder(getKeyResponse.Body).Decode(&r)
-	if r.Value != newKeyValue {
-		t.Errorf("Expected follower to have correct last entry value")
-	}
+	require.EqualValues(t, r.Value, newKeyValue, "Expected follower to have correct last entry value")
+
 }
 
 func TestFollowerMissingMultipleEntries(t *testing.T) {
@@ -280,65 +248,103 @@ func TestFollowerMissingMultipleEntries(t *testing.T) {
 	getKeyResponse, _ := http.Get(fmt.Sprintf("http://localhost:%d/get/%s", consts.RickyPort, missingKey))
 	var r api.ValueResponse
 	_ = json.NewDecoder(getKeyResponse.Body).Decode(&r)
-	if r.Value == missingKeyValue {
-		t.Errorf("Expected key to be missing")
-	}
+	require.NotEqualValues(t, r.Value, missingKeyValue, "Expected key to be missing")
 
 	newKey := "newKey"
 	newKeyValue := 20
 	_, _ = http.Get(fmt.Sprintf("http://localhost:%d/put/%s/%d", consts.KimPort, newKey, newKeyValue))
-	time.Sleep(2 * time.Second)
+	time.Sleep(consts.HeartbeatInterval)
 	getKeyResponse, _ = http.Get(fmt.Sprintf("http://localhost:%d/get/%s", consts.KimPort, newKey))
 	_ = json.NewDecoder(getKeyResponse.Body).Decode(&r)
-	if r.Value != newKeyValue {
-		t.Errorf("Expected value to be updated")
-	}
+	require.EqualValues(t, r.Value, newKeyValue, "Expected value to be updated")
 
 	getKeyResponse, _ = http.Get(fmt.Sprintf("http://localhost:%d/get/%s", consts.RickyPort, missingKey))
 	_ = json.NewDecoder(getKeyResponse.Body).Decode(&r)
-	if r.Value != missingKeyValue {
-		t.Errorf("Expected follower to sync missing value")
-	}
+	require.EqualValues(t, r.Value, missingKeyValue, "Expected follower to sync missing value")
 
 	getKeyResponse, _ = http.Get(fmt.Sprintf("http://localhost:%d/get/%s", consts.RickyPort, newKey))
 	_ = json.NewDecoder(getKeyResponse.Body).Decode(&r)
-	if r.Value != newKeyValue {
-		t.Errorf("Expected follower to have correct last entry value")
-	}
+	require.EqualValues(t, r.Value, newKeyValue, "Expected follower to have correct last entry value")
+
 }
 
 func TestFollowerHasExtraEntry(t *testing.T) {
-	swapTestDataAndRestartContainers("./test data/missing-multiple-entries.db")
+	swapTestDataAndRestartContainers("./test data/one-extra-entry.db")
 	extraKey := "d"
+	extraKeyLeaderValue := 3
 	extraKeyValue := 19
 	getKeyResponse, _ := http.Get(fmt.Sprintf("http://localhost:%d/get/%s", consts.RickyPort, extraKey))
 	var r api.ValueResponse
 	_ = json.NewDecoder(getKeyResponse.Body).Decode(&r)
-	if r.Value == extraKeyValue {
-		t.Errorf("Expected extra key to be present")
-	}
+	require.NotEqualValues(t, r.Value, extraKeyValue, "Expected extra key to be present")
 
 	newKey := "newKey"
 	newKeyValue := 20
 	_, _ = http.Get(fmt.Sprintf("http://localhost:%d/put/%s/%d", consts.KimPort, newKey, newKeyValue))
-	time.Sleep(2 * time.Second)
+	time.Sleep(consts.HeartbeatInterval + 1*time.Second)
 	getKeyResponse, _ = http.Get(fmt.Sprintf("http://localhost:%d/get/%s", consts.KimPort, newKey))
 	_ = json.NewDecoder(getKeyResponse.Body).Decode(&r)
-	if r.Value != newKeyValue {
-		t.Errorf("Expected value to be updated")
-	}
+	require.EqualValues(t, r.Value, newKeyValue, "Expected value to be updated")
 
 	getKeyResponse, _ = http.Get(fmt.Sprintf("http://localhost:%d/get/%s", consts.RickyPort, extraKey))
 	_ = json.NewDecoder(getKeyResponse.Body).Decode(&r)
-	if r.Value != extraKeyValue {
-		t.Errorf("Expected follower to delete extra value")
-	}
+	require.EqualValues(t, r.Value, extraKeyLeaderValue, "Expected follower to delete extra value")
 
 	getKeyResponse, _ = http.Get(fmt.Sprintf("http://localhost:%d/get/%s", consts.RickyPort, newKey))
 	_ = json.NewDecoder(getKeyResponse.Body).Decode(&r)
-	if r.Value != newKeyValue {
-		t.Errorf("Expected follower to have correct last entry value")
-	}
+	require.EqualValues(t, r.Value, newKeyValue, "Expected follower to have correct last entry value")
+
+}
+
+func TestFollowerHasExtraEntries(t *testing.T) {
+	swapTestDataAndRestartContainers("./test data/multiple-extra-entries.db")
+	extraKey := "c"
+	extraKeyLeaderValue := 2
+	extraKeyValue := 22
+	getKeyResponse, _ := http.Get(fmt.Sprintf("http://localhost:%d/get/%s", consts.RickyPort, extraKey))
+	var r api.ValueResponse
+	_ = json.NewDecoder(getKeyResponse.Body).Decode(&r)
+	require.NotEqualValues(t, r.Value, extraKeyValue, "Expected extra key to be present")
+
+	newKey := "newKey"
+	newKeyValue := 20
+	_, _ = http.Get(fmt.Sprintf("http://localhost:%d/put/%s/%d", consts.KimPort, newKey, newKeyValue))
+	time.Sleep(consts.HeartbeatInterval + 1*time.Second)
+	getKeyResponse, _ = http.Get(fmt.Sprintf("http://localhost:%d/get/%s", consts.KimPort, newKey))
+	_ = json.NewDecoder(getKeyResponse.Body).Decode(&r)
+	require.EqualValues(t, r.Value, newKeyValue, "Expected value to be updated")
+
+	getKeyResponse, _ = http.Get(fmt.Sprintf("http://localhost:%d/get/%s", consts.RickyPort, extraKey))
+	_ = json.NewDecoder(getKeyResponse.Body).Decode(&r)
+	require.EqualValues(t, r.Value, extraKeyLeaderValue, "Expected follower to delete extra value")
+
+	getKeyResponse, _ = http.Get(fmt.Sprintf("http://localhost:%d/get/%s", consts.RickyPort, newKey))
+	_ = json.NewDecoder(getKeyResponse.Body).Decode(&r)
+	require.EqualValues(t, r.Value, newKeyValue, "Expected follower to have correct last entry value")
+}
+
+func TestFollowerHasSameAmountOfEntriesButCompletelyDifferentLog(t *testing.T) {
+	swapTestDataAndRestartContainers("./test data/same-index-different-logs.db")
+	extraKey := "c"
+	extraKeyLeaderValue := 2
+	var r api.ValueResponse
+
+	newKey := "newKey"
+	newKeyValue := 20
+	_, _ = http.Get(fmt.Sprintf("http://localhost:%d/put/%s/%d", consts.KimPort, newKey, newKeyValue))
+	time.Sleep(consts.HeartbeatInterval + 1*time.Second)
+	getKeyResponse, _ := http.Get(fmt.Sprintf("http://localhost:%d/get/%s", consts.KimPort, newKey))
+	_ = json.NewDecoder(getKeyResponse.Body).Decode(&r)
+	require.EqualValues(t, r.Value, newKeyValue, "Expected value to be updated")
+
+	getKeyResponse, _ = http.Get(fmt.Sprintf("http://localhost:%d/get/%s", consts.RickyPort, extraKey))
+	_ = json.NewDecoder(getKeyResponse.Body).Decode(&r)
+	require.EqualValues(t, r.Value, extraKeyLeaderValue, "Expected follower to delete extra value")
+
+	getKeyResponse, _ = http.Get(fmt.Sprintf("http://localhost:%d/get/%s", consts.RickyPort, newKey))
+	_ = json.NewDecoder(getKeyResponse.Body).Decode(&r)
+	require.EqualValues(t, r.Value, newKeyValue, "Expected follower to have correct last entry value")
+
 }
 
 func swapTestDataAndRestartContainers(dbToSwap string) {

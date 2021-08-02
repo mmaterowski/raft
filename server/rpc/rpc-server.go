@@ -27,22 +27,23 @@ func (s *Server) AppendEntries(ctx context.Context, in *pb.AppendEntriesRequest)
 		return failReply, nil
 	}
 
-	if s.CommitIndex < int(in.LeaderCommitIndex) {
-		log.Print("Gonna commit entries. Leader commit index: ", int(in.LeaderCommitIndex), "Server commit index: ", s.CommitIndex)
-		go func(leaderCommitIndex int) {
-			s.Server.CommitEntries(leaderCommitIndex)
-
-		}(int(in.LeaderCommitIndex))
-	}
-
+	var lastEntryInSync bool
+	var entry *entry.Entry
 	if len(in.Entries) == 0 {
 		log.Printf("Heartbeat received")
+		entry, _ = s.Server.AppRepository.GetLastEntry(ctx)
+		lastEntryInSync = isLastEntryInSync(int(in.PreviousLogIndex), int(in.PreviousLogTerm), *entry)
+		if lastEntryInSync {
+			commitEntries(s, int(in.LeaderCommitIndex))
+		} else {
+			log.Print("Heartbeat: Log not consistent. ")
+		}
 		return successReply, nil
 	}
 
 	log.Print("Leader PreviousLogIndex: ", in.PreviousLogIndex)
-	entry, _ := s.Server.AppRepository.GetLastEntry(ctx)
-	lastEntryInSync := isLastEntryInSync(int(in.PreviousLogIndex), int(in.PreviousLogTerm), *entry)
+	entry, _ = s.Server.AppRepository.GetLastEntry(ctx)
+	lastEntryInSync = isLastEntryInSync(int(in.PreviousLogIndex), int(in.PreviousLogTerm), *entry)
 
 	if !lastEntryInSync {
 		err := s.Server.AppRepository.DeleteAllEntriesStartingFrom(ctx, int(in.PreviousLogIndex))
@@ -56,7 +57,6 @@ func (s *Server) AppendEntries(ctx context.Context, in *pb.AppendEntriesRequest)
 
 	entries := mapRaftEntriesToEntries(in.Entries)
 	log.Print("Conditions satisfied. Persisting entries", entries)
-	//TUTAJ LOCKA TRZEBA DOJEBAĆ BO ŚIĘ NIE SPINA READ W COMMIT ENTRIES
 	lastAppendedEntry, err := s.Server.AppRepository.PersistValues(ctx, entries)
 
 	if err != nil {
@@ -64,8 +64,9 @@ func (s *Server) AppendEntries(ctx context.Context, in *pb.AppendEntriesRequest)
 		return failReply, nil
 	}
 
-	if in.LeaderCommitIndex > int32(s.Server.CommitIndex) {
-		s.Server.CommitIndex = helpers.Min(int(in.LeaderCommitIndex), entries[0].Index-1)
+	newCommitIndex := helpers.Min(int(in.LeaderCommitIndex), entries[0].Index-1)
+	if newCommitIndex > s.Server.CommitIndex {
+		commitEntries(s, newCommitIndex)
 	}
 
 	s.Server.PreviousEntryIndex = lastAppendedEntry.Index
@@ -73,6 +74,13 @@ func (s *Server) AppendEntries(ctx context.Context, in *pb.AppendEntriesRequest)
 	log.Println("Follower: Succesfully appended entries to log")
 	log.Println(helpers.PrettyPrint(in))
 	return successReply, nil
+}
+
+func commitEntries(s *Server, newCommitIndex int) {
+	log.Print("Gonna commit entries. Leader commit index: ", newCommitIndex, "Server commit index: ", s.CommitIndex)
+	go func(leaderCommitIndex int) {
+		s.Server.CommitEntries(leaderCommitIndex)
+	}(newCommitIndex)
 }
 
 func isLastEntryInSync(leaderLastLogIndex int, leaderLastLogTerm int, lastEntry entry.Entry) bool {

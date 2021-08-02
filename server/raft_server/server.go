@@ -63,9 +63,11 @@ func (s *Server) CommitEntries(leaderCommitIndex int) error {
 		return nil
 	}
 	ctx := context.Background()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	for leaderCommitIndex != s.CommitIndex {
 		//TODO Optimize:Get all entries at once
-		log.Print("Inisde CommitEntries")
+		log.Print("Leader commit index: ", leaderCommitIndex)
 		log.Print("Server commit index: ", s.CommitIndex)
 		nextEntryIndexToCommit := s.CommitIndex + 1
 		entry, err := s.AppRepository.GetEntryAtIndex(ctx, nextEntryIndexToCommit)
