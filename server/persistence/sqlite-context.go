@@ -173,10 +173,6 @@ func (db SqlLiteRepository) GetVotedFor(ctx context.Context) (string, error) {
 }
 
 func (db SqlLiteRepository) SetVotedFor(ctx context.Context, votedForId string) error {
-	if guard.AgainstEmptyString(votedForId) {
-		return ErrInvalidArgument
-	}
-
 	insertStatement := fmt.Sprintf(`UPDATE VotedFor SET VotedForId="%s" WHERE UniqueEntryId="%s"`, votedForId, db.uniqueEntryId)
 	statement, _ := db.handle.Prepare(insertStatement)
 	sqlRes, err := statement.Exec()

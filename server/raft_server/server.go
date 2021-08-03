@@ -27,6 +27,8 @@ type Server struct {
 	mu                  sync.Mutex
 	ElectionTicker      *time.Ticker
 	ResetElectionTicker chan struct{}
+	HeartbeatTicker     *time.Ticker
+	TriggerHeartbeat    chan struct{}
 }
 
 func (s *Server) StartServer(id string) {
@@ -38,10 +40,16 @@ func (s *Server) StartServer(id string) {
 	s.PreviousEntryTerm = consts.TermInitialValue
 	s.CommitIndex = consts.LeaderCommitInitialValue
 	log.Print("Starting server...")
+	log.Print("Setting voted for and current term to initial values until election improved")
+	s.AppRepository.SetVotedFor(context.Background(), "")
+	s.AppRepository.SetCurrentTerm(context.Background(), consts.TermUninitializedValue)
 	s.VotedFor, _ = s.AppRepository.GetVotedFor(context.Background())
 	s.CurrentTerm, _ = s.AppRepository.GetCurrentTerm(context.Background())
 	s.ServerType = structs.Follower
+
 	s.ResetElectionTicker = make(chan struct{})
+	s.TriggerHeartbeat = make(chan struct{})
+	s.HeartbeatTicker = time.NewTicker(consts.HeartbeatInterval)
 	seed := rand.NewSource(time.Now().UnixNano())
 	electionTimeout := rand.New(seed).Intn(100)*300 + 100
 	log.Printf("Election timeout set to: %d + %d", electionTimeout, consts.HeartbeatInterval)

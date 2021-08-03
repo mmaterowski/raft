@@ -1,6 +1,6 @@
 Leader election:
     ✔ After persistence is working properly plan out election - read paper to the end @today @done(21-08-03 07:05)
-    ☐ Start as a follower
+    ✔ Start as a follower @done(21-08-03 08:10)
     ☐ Scenario 1: win election
         ☐ Commit entries from log when election won
     ☐ Scenario 2: another server wins election

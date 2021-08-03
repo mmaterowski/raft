@@ -65,17 +65,43 @@ func SetupElection(c *rpc.Client, others []string) {
 			case <-server.ElectionTicker.C:
 				log.Print("Ticker timeout: Start election...")
 				server.CurrentTerm++
+				server.VotedFor = server.Id
+				server.SetVotedFor(context.Background(), server.Id)
 				log.Printf("%s issues Election, incrementing current term to: %d", server.Id, server.CurrentTerm)
 
 				mu.Lock()
 				server.ServerType = structs.Candidate
+				server.HeartbeatTicker.Stop()
 				mu.Unlock()
 
 				for _, otherServer := range others {
 					go func(serverId string) {
-						log.Printf("Request vote from %s", serverId)
-						// request := protoBuff.RequestVoteRequest{Term: int32(server.CurrentTerm), CandidateID: server.Id, LastLogIndex: int32(server.PreviousEntryIndex), LastLogTerm: int32(server.PreviousEntryTerm)}
-						//  reply, err := c.GetClientFor(otherServer).RequestVote(context.Background(), &request)
+						request := protoBuff.RequestVoteRequest{Term: int32(server.CurrentTerm), CandidateID: server.Id, LastLogIndex: int32(server.PreviousEntryIndex), LastLogTerm: int32(server.PreviousEntryTerm)}
+						reply, err := c.GetClientFor(serverId).RequestVote(context.Background(), &request)
+						if err != nil {
+							log.Print("Request vote error: ", err)
+						}
+						if reply == nil {
+							log.Print("No errors but nil reply, something werid happened")
+							return
+						}
+
+						if reply.Term > int32(server.CurrentTerm) {
+							log.Print("Response term higher than candidate's, setting current term to: ", reply.Term)
+							server.CurrentTerm = int(reply.Term)
+							server.SetCurrentTerm(context.Background(), int(reply.Term))
+						}
+
+						log.Print("Got RequestVoteResponse, voteGranted: ", reply.VoteGranted)
+						log.Print("Reply term: ", reply.Term, "Server current term: ", server.CurrentTerm)
+						log.Print("Server state: ", server.ServerType)
+						if reply.VoteGranted && reply.Term <= int32(server.CurrentTerm) && server.ServerType != structs.Leader {
+							log.Printf("%s becoming a leader", server.Id)
+							server.ServerType = structs.Leader
+							server.HeartbeatTicker = time.NewTicker(consts.HeartbeatInterval)
+							server.TriggerHeartbeat <- struct{}{}
+							server.ResetElectionTicker <- struct{}{}
+						}
 					}(otherServer)
 				}
 			case <-server.ResetElectionTicker:
@@ -89,12 +115,12 @@ func SetupElection(c *rpc.Client, others []string) {
 }
 
 func StartHeartbeat(c *rpc.Client, others []string) {
-	ticker := time.NewTicker(consts.HeartbeatInterval)
-	quit := make(chan struct{})
+	server.HeartbeatTicker.Stop()
 	go func() {
 		for {
 			select {
-			case <-ticker.C:
+			case <-server.HeartbeatTicker.C:
+				server.ResetElectionTicker <- struct{}{}
 				for _, otherServer := range others {
 					go func(commitIndex int, term int, id string, otherServer string) {
 						log.Print("Sending heartbeat. Leader commit index: ", commitIndex)
@@ -102,8 +128,9 @@ func StartHeartbeat(c *rpc.Client, others []string) {
 						c.GetClientFor(otherServer).AppendEntries(context.Background(), &request)
 					}(server.CommitIndex, server.CurrentTerm, server.Id, otherServer)
 				}
-			case <-quit:
-				ticker.Stop()
+			case <-server.TriggerHeartbeat:
+				log.Printf("Heartbeat was resetted, expect to send hearbeat after: %d", consts.HeartbeatInterval)
+				//just to recalculate select values
 			}
 		}
 	}()

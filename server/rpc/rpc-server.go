@@ -16,14 +16,36 @@ type Server struct {
 }
 
 func (s *Server) RequestVote(ctx context.Context, in *pb.RequestVoteRequest) (*pb.RequestVoteReply, error) {
+	log.Print("________RequestVoteRPC________")
+	log.Print("Request: ", in)
 	reply := &pb.RequestVoteReply{Term: int32(s.CurrentTerm), VoteGranted: false}
+
 	if in.Term < int32(s.CurrentTerm) {
+		log.Print("Issuing candidate term is lower than server")
 		return reply, nil
 	}
-	// votedFor, err := s.GetVotedFor(ctx)
-	// if err != nil {
-	// 	return reply, err
-	// }
+
+	if in.Term > int32(s.CurrentTerm) {
+		log.Print("Request term higher than server's. Resetting voted for.")
+		s.CurrentTerm = int(in.Term)
+		s.SetCurrentTerm(ctx, int(in.Term))
+		s.SetVotedFor(ctx, "")
+	}
+
+	votedFor, err := s.GetVotedFor(ctx)
+	if err != nil {
+		log.Print("Error getting voted for, this is not good!")
+		return reply, err
+	}
+	log.Print("Voted for: ", votedFor, " Server previous entry index: ", s.PreviousEntryIndex, " previous entry term: ", s.PreviousEntryTerm)
+	if votedFor == "" && in.LastLogIndex == int32(s.PreviousEntryIndex) && in.LastLogTerm == int32(s.PreviousEntryTerm) {
+		log.Printf("Gonna grant a vote for: %s", in.CandidateID)
+		reply.VoteGranted = true
+		s.VotedFor = in.CandidateID
+		s.SetVotedFor(ctx, in.CandidateID)
+		return reply, nil
+	}
+	log.Printf("No condition satisfied, not granting a vote for: %s", in.CandidateID)
 	return reply, nil
 }
 
