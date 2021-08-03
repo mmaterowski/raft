@@ -41,9 +41,8 @@ func (s *Server) StartServer(id string) {
 	s.CommitIndex = consts.LeaderCommitInitialValue
 	log.Print("Starting server...")
 	log.Print("Setting voted for and current term to initial values until election improved")
-	s.AppRepository.SetVotedFor(context.Background(), "")
+	s.VoteFor("")
 	s.AppRepository.SetCurrentTerm(context.Background(), consts.TermUninitializedValue)
-	s.VotedFor, _ = s.AppRepository.GetVotedFor(context.Background())
 	s.CurrentTerm, _ = s.AppRepository.GetCurrentTerm(context.Background())
 	s.ServerType = structs.Follower
 
@@ -54,6 +53,16 @@ func (s *Server) StartServer(id string) {
 	electionTimeout := rand.New(seed).Intn(100)*300 + 100
 	log.Printf("Election timeout set to: %d + %d", electionTimeout, consts.HeartbeatInterval)
 	s.ElectionTicker = time.NewTicker(consts.HeartbeatInterval + time.Duration(electionTimeout)*time.Millisecond)
+}
+
+func (s *Server) VoteFor(candidateId string) bool {
+	err := s.SetVotedFor(context.Background(), candidateId)
+	if err != nil {
+		log.Print(err)
+		return false
+	}
+	s.VotedFor = candidateId
+	return true
 }
 
 func (s *Server) RebuildStateFromLog() bool {

@@ -32,17 +32,11 @@ func (s *Server) RequestVote(ctx context.Context, in *pb.RequestVoteRequest) (*p
 		s.SetVotedFor(ctx, "")
 	}
 
-	votedFor, err := s.GetVotedFor(ctx)
-	if err != nil {
-		log.Print("Error getting voted for, this is not good!")
-		return reply, err
-	}
-	log.Print("Voted for: ", votedFor, " Server previous entry index: ", s.PreviousEntryIndex, " previous entry term: ", s.PreviousEntryTerm)
-	if votedFor == "" && in.LastLogIndex == int32(s.PreviousEntryIndex) && in.LastLogTerm == int32(s.PreviousEntryTerm) {
+	log.Print("Voted for: ", s.VotedFor, " Server previous entry index: ", s.PreviousEntryIndex, " previous entry term: ", s.PreviousEntryTerm)
+	if s.VotedFor == "" && in.LastLogIndex == int32(s.PreviousEntryIndex) && in.LastLogTerm == int32(s.PreviousEntryTerm) {
 		log.Printf("Gonna grant a vote for: %s", in.CandidateID)
 		reply.VoteGranted = true
-		s.VotedFor = in.CandidateID
-		s.SetVotedFor(ctx, in.CandidateID)
+		s.VoteFor(in.CandidateID)
 		return reply, nil
 	}
 	log.Printf("No condition satisfied, not granting a vote for: %s", in.CandidateID)

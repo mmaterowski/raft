@@ -65,8 +65,11 @@ func SetupElection(c *rpc.Client, others []string) {
 			case <-server.ElectionTicker.C:
 				log.Print("Ticker timeout: Start election...")
 				server.CurrentTerm++
-				server.VotedFor = server.Id
-				server.SetVotedFor(context.Background(), server.Id)
+				success := server.VoteFor(server.Id)
+				if !success {
+					log.Print("Something bad happened, couldn't vote for itself")
+				}
+
 				log.Printf("%s issues Election, incrementing current term to: %d", server.Id, server.CurrentTerm)
 
 				mu.Lock()
