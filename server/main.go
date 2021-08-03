@@ -7,6 +7,7 @@ import (
 	"math/rand"
 	"net"
 	"os"
+	"sync"
 	"time"
 
 	api "github.com/mmaterowski/raft/api"
@@ -21,6 +22,7 @@ import (
 )
 
 var server *raft.Server
+var mu sync.Mutex
 
 func main() {
 	helpers.PrintAsciiHelloString()
@@ -36,7 +38,8 @@ func main() {
 		err := handleRPC(serverId, server)
 		helpers.Check(err)
 	}()
-	client := rpc.Client{}
+
+	client := &rpc.Client{}
 
 	go func(env string) {
 		client.SetupRpcClient(server.Id)
@@ -48,40 +51,44 @@ func main() {
 	}(env)
 
 	api.RaftServerReference = server
-	api.RpcClientReference = &client
+	api.RpcClientReference = client
 	apiPort := getApiPort(env)
 
 	api.HandleRequests(apiPort)
 
 }
 
-func SetupElection(c rpc.Client, others []string) {
-	seed := rand.NewSource(time.Now().UnixNano())
-	electionTimeout := rand.New(seed).Intn(100)*300 + 100
-	log.Printf("Election timeout set to: %d", electionTimeout)
-	server.ElectionTicker = time.NewTicker(consts.HeartbeatInterval + time.Duration(electionTimeout)*time.Millisecond)
-
+func SetupElection(c *rpc.Client, others []string) {
 	go func() {
-		select {
-		case <-server.ElectionTicker.C:
-			log.Print("Ticker timeout: Start election...")
-			server.CurrentTerm++
-			log.Printf("%s issues Election, incrementing current term to: %d", server.Id, server.CurrentTerm)
-			server.ServerType = structs.Candidate
+		for {
+			select {
+			case <-server.ElectionTicker.C:
+				log.Print("Ticker timeout: Start election...")
+				server.CurrentTerm++
+				log.Printf("%s issues Election, incrementing current term to: %d", server.Id, server.CurrentTerm)
 
-			for _, otherServer := range others {
-				go func(serverId string) {
-					log.Printf("Request vote from %s", serverId)
-					// request := protoBuff.RequestVoteRequest{Term: int32(server.CurrentTerm), CandidateID: server.Id, LastLogIndex: int32(server.PreviousEntryIndex), LastLogTerm: int32(server.PreviousEntryTerm)}
-					//  reply, err := c.GetClientFor(otherServer).RequestVote(context.Background(), &request)
-				}(otherServer)
+				mu.Lock()
+				server.ServerType = structs.Candidate
+				mu.Unlock()
+
+				for _, otherServer := range others {
+					go func(serverId string) {
+						log.Printf("Request vote from %s", serverId)
+						// request := protoBuff.RequestVoteRequest{Term: int32(server.CurrentTerm), CandidateID: server.Id, LastLogIndex: int32(server.PreviousEntryIndex), LastLogTerm: int32(server.PreviousEntryTerm)}
+						//  reply, err := c.GetClientFor(otherServer).RequestVote(context.Background(), &request)
+					}(otherServer)
+				}
+			case <-server.ResetElectionTicker:
+				seed := rand.NewSource(time.Now().UnixNano())
+				electionTimeout := rand.New(seed).Intn(100)*300 + 100
+				log.Printf("Resetting ticker, election timeout: %d + %d", electionTimeout, consts.HeartbeatInterval)
+				server.ElectionTicker.Reset(consts.HeartbeatInterval + time.Duration(electionTimeout)*time.Millisecond)
 			}
-
 		}
 	}()
 }
 
-func StartHeartbeat(c rpc.Client, others []string) {
+func StartHeartbeat(c *rpc.Client, others []string) {
 	ticker := time.NewTicker(consts.HeartbeatInterval)
 	quit := make(chan struct{})
 	go func() {

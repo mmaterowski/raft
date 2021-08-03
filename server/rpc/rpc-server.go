@@ -28,12 +28,10 @@ func (s *Server) RequestVote(ctx context.Context, in *pb.RequestVoteRequest) (*p
 }
 
 func (s *Server) AppendEntries(ctx context.Context, in *pb.AppendEntriesRequest) (*pb.AppendEntriesReply, error) {
-	log.Print("__________________________________")
-	log.Print("Appending entries request received.")
-	if s.ElectionTicker != nil {
-		log.Print("Resetting election timer")
-		s.ElectionTicker.Reset(0)
-	}
+	log.Print("________AppendEntriesRPC___________")
+	log.Print("Resetting election timer")
+	s.ResetElectionTicker <- struct{}{}
+
 	term := int32(s.Server.CurrentTerm)
 	successReply := &pb.AppendEntriesReply{Success: true, Term: term}
 	failReply := &pb.AppendEntriesReply{Success: false, Term: term}

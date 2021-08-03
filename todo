@@ -1,9 +1,12 @@
 Leader election:
-    ☐ After persistence is working properly plan out election - read paper to the end @today 
-    ☐ Where to set term?
-    ☐ Heartbeat
-    ☐ Election timeout - what's right value
-    ☐ Do I ever need to stop election ticker?
+    ✔ After persistence is working properly plan out election - read paper to the end @today @done(21-08-03 07:05)
+    ☐ Start as a follower
+    ☐ Scenario 1: win election
+        ☐ Commit entries from log when election won
+    ☐ Scenario 2: another server wins election
+        ☐ Return to follower when heartbeat with higher term received
+    ☐ Scenario 3: nobody wins election
+    ☐ Persist VotedFor
 
 ✔ Log replication: @done(21-08-02 10:16)
     ✔ Handle multiple entries append @done(21-07-23 07:11)

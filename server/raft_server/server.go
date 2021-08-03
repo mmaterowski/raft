@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"log"
+	"math/rand"
 	"sync"
 	"time"
 
@@ -23,8 +24,9 @@ type Server struct {
 	Id                 string
 	VotedFor           string
 	AppRepository
-	mu             sync.Mutex
-	ElectionTicker *time.Ticker
+	mu                  sync.Mutex
+	ElectionTicker      *time.Ticker
+	ResetElectionTicker chan struct{}
 }
 
 func (s *Server) StartServer(id string) {
@@ -38,16 +40,12 @@ func (s *Server) StartServer(id string) {
 	log.Print("Starting server...")
 	s.VotedFor, _ = s.AppRepository.GetVotedFor(context.Background())
 	s.CurrentTerm, _ = s.AppRepository.GetCurrentTerm(context.Background())
-	//Kim is always a leader, change when election module implemented
-	if id == consts.KimId {
-		stateRebuilt := s.RebuildStateFromLog()
-		if !stateRebuilt {
-			log.Panic("Couldn't rebuild state")
-		}
-	}
-
-	//setElectionTimer?
-
+	s.ServerType = structs.Follower
+	s.ResetElectionTicker = make(chan struct{})
+	seed := rand.NewSource(time.Now().UnixNano())
+	electionTimeout := rand.New(seed).Intn(100)*300 + 100
+	log.Printf("Election timeout set to: %d + %d", electionTimeout, consts.HeartbeatInterval)
+	s.ElectionTicker = time.NewTicker(consts.HeartbeatInterval + time.Duration(electionTimeout)*time.Millisecond)
 }
 
 func (s *Server) RebuildStateFromLog() bool {
