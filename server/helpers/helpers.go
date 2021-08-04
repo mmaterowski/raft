@@ -5,6 +5,8 @@ import (
 	"io"
 	"log"
 	"os"
+	"reflect"
+	"runtime"
 	"strings"
 )
 
@@ -52,6 +54,10 @@ func Copy(src, dst string) error {
 func PrettyPrint(i interface{}) string {
 	s, _ := json.MarshalIndent(i, "", "\t")
 	return string(s)
+}
+
+func GetFunctionName(i interface{}) string {
+	return runtime.FuncForPC(reflect.ValueOf(i).Pointer()).Name()
 }
 
 func PrintAsciiHelloString() {

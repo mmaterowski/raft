@@ -46,7 +46,7 @@ func GetDbConfig(env string) DbConfig {
 	return config
 }
 
-func NewDb(config DbConfig) Db {
+func NewDb(config DbConfig) *Db {
 	db := Db{}
 	if config.InMemory {
 		log.Print("Using in memory db")
@@ -59,5 +59,5 @@ func NewDb(config DbConfig) Db {
 		db = Db{AppRepository: context}
 	}
 
-	return db
+	return &db
 }

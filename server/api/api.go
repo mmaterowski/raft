@@ -16,7 +16,7 @@ import (
 	"github.com/mmaterowski/raft/raft_rpc"
 	pb "github.com/mmaterowski/raft/raft_rpc"
 	raftServer "github.com/mmaterowski/raft/raft_server"
-	. "github.com/mmaterowski/raft/rpc"
+	. "github.com/mmaterowski/raft/rpc_client"
 	structs "github.com/mmaterowski/raft/structs"
 
 	"github.com/gorilla/mux"
@@ -24,11 +24,15 @@ import (
 	"gopkg.in/matryer/respond.v1"
 )
 
-var others []string
 var RaftServerReference *raftServer.Server
 var RpcClientReference *Client
 var retryIntervalValue = 1 * time.Second
 var cancelHandlesForOngoingSyncRequest = make(map[string]context.CancelFunc)
+
+type RaftHttpServer struct {
+	raftServer                         *raftServer.Server
+	cancelHandlesForOngoingSyncRequest map[string]context.CancelFunc
+}
 
 type StatusResponse struct {
 	Status structs.ServerType
@@ -40,26 +44,6 @@ type ValueResponse struct {
 
 type PutResponse struct {
 	Success bool
-}
-
-func IdentifyServer(serverId string, local bool) []string {
-
-	if local {
-		others = append(others, consts.LaszloId, consts.RickyId)
-		return others
-	}
-
-	switch serverId {
-	case consts.KimId:
-		others = append(others, consts.LaszloId, consts.RickyId)
-	case consts.RickyId:
-		others = append(others, consts.LaszloId, consts.KimId)
-	case consts.LaszloId:
-		others = append(others, consts.RickyId, consts.KimId)
-	default:
-		log.Panic("Couldn't identify RaftServerReference")
-	}
-	return others
 }
 
 func GetStatus(w http.ResponseWriter, r *http.Request) {
@@ -158,7 +142,7 @@ func cancelOngoingSyncRequest() {
 func orderFollowersToSyncTheirLog(ctx context.Context, entries []*raft_rpc.Entry) {
 	c := make(chan struct{})
 
-	for _, otherServer := range others {
+	for _, otherServer := range RaftServerReference.Others {
 		go func(leaderId string, previousEntryIndex int, previousEntryTerm int, commitIndex int, otherServer string) {
 			ctx, cancel := context.WithCancel(ctx)
 			cancelHandlesForOngoingSyncRequest[otherServer] = cancel
@@ -197,7 +181,7 @@ func orderFollowersToSyncTheirLog(ctx context.Context, entries []*raft_rpc.Entry
 			}()
 		}(RaftServerReference.Id, RaftServerReference.PreviousEntryIndex, RaftServerReference.PreviousEntryTerm, RaftServerReference.CommitIndex, otherServer)
 	}
-	for i := 0; i < (len(others) / 2); i++ {
+	for i := 0; i < (len(RaftServerReference.Others) / 2); i++ {
 		log.Print("Waiting for goroutine to finish work. i: ", i)
 		<-c
 	}

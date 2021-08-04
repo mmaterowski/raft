@@ -24,14 +24,14 @@ type SqlLiteRepository struct {
 var lock sync.Mutex
 
 var (
-	ErrCantConnect             = errors.New("error connecting to SQL")
-	ErrDbNotInitialized        = errors.New("db not initialized properly")
-	ErrTermNumberLowerThanZero = errors.New("cannot create entry with term number lower than zero")
-	ErrNoRowsUpdated           = errors.New("no rows were updated")
-	ErrCouldNotReconstructLog  = errors.New("couldnt reconstruct log. Probably there's invalid entry in log")
-	ErrInvalidArgument         = errors.New("argument passed to method was invalid")
-	ErrDeleteOutsideOfRange    = errors.New("could not delete entries that are outside of entries length")
-	ErrQueryingRow             = errors.New("something bad happened")
+	errCantConnect             = errors.New("error connecting to SQL")
+	errDbNotInitialized        = errors.New("db not initialized properly")
+	errTermNumberLowerThanZero = errors.New("cannot create entry with term number lower than zero")
+	errNoRowsUpdated           = errors.New("no rows were updated")
+	errCouldNotReconstructLog  = errors.New("couldnt reconstruct log. Probably there's invalid entry in log")
+	errInvalidArgument         = errors.New("argument passed to method was invalid")
+	errDeleteOutsideOfRange    = errors.New("could not delete entries that are outside of entries length")
+	errQueryingRow             = errors.New("something bad happened")
 )
 
 func NewSqlLiteRepository(dbPath string) (SqlLiteRepository, error) {
@@ -39,13 +39,13 @@ func NewSqlLiteRepository(dbPath string) (SqlLiteRepository, error) {
 	connected := repo.setDbHandle(dbPath)
 
 	if !connected {
-		return SqlLiteRepository{}, ErrCantConnect
+		return SqlLiteRepository{}, errCantConnect
 	}
 
 	success := repo.InitTablesIfNeeded()
 
 	if !success {
-		return SqlLiteRepository{}, ErrDbNotInitialized
+		return SqlLiteRepository{}, errDbNotInitialized
 	}
 
 	return repo, nil
@@ -55,6 +55,7 @@ func (s SqlLiteRepository) PersistValue(ctx context.Context, key string, value i
 	lock.Lock()
 	defer lock.Unlock()
 	insertStatement, _ := s.handle.Prepare("INSERT INTO Entries (Value, Key, TermNumber) VALUES (?, ?, ?)")
+	defer insertStatement.Close()
 	insertResult, err := insertStatement.Exec(value, key, termNumber)
 
 	if err != nil {
@@ -96,7 +97,7 @@ func (s SqlLiteRepository) PersistValues(ctx context.Context, entries []entry.En
 
 func (db SqlLiteRepository) GetEntryAtIndex(ctx context.Context, index int) (*entry.Entry, error) {
 	if guard.AgainstNegativeValue(index) {
-		return &entry.Entry{}, ErrInvalidArgument
+		return &entry.Entry{}, errInvalidArgument
 	}
 
 	selectStatement := fmt.Sprintf(`SELECT * FROM Entries WHERE "Index"=%d`, index)
@@ -130,7 +131,7 @@ func (db SqlLiteRepository) GetCurrentTerm(ctx context.Context) (int, error) {
 		return currentTermNumber, err
 	}
 	if err != nil {
-		log.Print(ErrQueryingRow, err)
+		log.Print(errQueryingRow, err)
 	}
 	currentTermNumber, convError := strconv.Atoi(sqlRes)
 	if convError != nil {
@@ -142,7 +143,7 @@ func (db SqlLiteRepository) GetCurrentTerm(ctx context.Context) (int, error) {
 
 func (db SqlLiteRepository) SetCurrentTerm(ctx context.Context, currentTerm int) error {
 	if guard.AgainstNegativeValue(currentTerm) {
-		return ErrInvalidArgument
+		return errInvalidArgument
 	}
 
 	insertStatement := fmt.Sprintf(`UPDATE Term SET CurrentTerm="%d" WHERE UniqueEntryId="%s"`, currentTerm, db.uniqueEntryId)
@@ -153,7 +154,7 @@ func (db SqlLiteRepository) SetCurrentTerm(ctx context.Context, currentTerm int)
 	}
 
 	if atLeastOneRowWasUpdated(sqlRes) {
-		return ErrNoRowsUpdated
+		return errNoRowsUpdated
 	}
 
 	return nil
@@ -166,7 +167,7 @@ func (db SqlLiteRepository) GetVotedFor(ctx context.Context) (string, error) {
 	if err == sql.ErrNoRows {
 		return foundId, err
 	} else if err != nil {
-		log.Print(ErrQueryingRow, err)
+		log.Print(errQueryingRow, err)
 	}
 
 	return foundId, nil
@@ -181,7 +182,7 @@ func (db SqlLiteRepository) SetVotedFor(ctx context.Context, votedForId string) 
 	}
 
 	if atLeastOneRowWasUpdated(sqlRes) {
-		return ErrNoRowsUpdated
+		return errNoRowsUpdated
 	}
 
 	return nil
@@ -214,7 +215,7 @@ func (db SqlLiteRepository) GetLog(ctx context.Context) (*[]entry.Entry, error) 
 	}
 
 	if couldntReconstructLog {
-		return &[]entry.Entry{}, ErrCouldNotReconstructLog
+		return &[]entry.Entry{}, errCouldNotReconstructLog
 	}
 
 	return &entries, nil
@@ -222,7 +223,7 @@ func (db SqlLiteRepository) GetLog(ctx context.Context) (*[]entry.Entry, error) 
 
 func (db SqlLiteRepository) DeleteAllEntriesStartingFrom(ctx context.Context, index int) error {
 	if guard.AgainstZeroOrNegativeValue(index) {
-		return ErrInvalidArgument
+		return errInvalidArgument
 	}
 
 	lock.Lock()

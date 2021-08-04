@@ -46,7 +46,7 @@ func (s *Server) RequestVote(ctx context.Context, in *pb.RequestVoteRequest) (*p
 func (s *Server) AppendEntries(ctx context.Context, in *pb.AppendEntriesRequest) (*pb.AppendEntriesReply, error) {
 	log.Print("________AppendEntriesRPC___________")
 	log.Print("Resetting election timer")
-	s.ResetElectionTicker <- struct{}{}
+	s.Election.ResetTicker <- struct{}{}
 
 	term := int32(s.Server.CurrentTerm)
 	successReply := &pb.AppendEntriesReply{Success: true, Term: term}
@@ -103,12 +103,14 @@ func (s *Server) AppendEntries(ctx context.Context, in *pb.AppendEntriesRequest)
 	log.Println(helpers.PrettyPrint(in))
 	return successReply, nil
 }
+
 func commitEntries(s *Server, newCommitIndex int) {
 	log.Print("Gonna commit entries. Leader commit index: ", newCommitIndex, "Server commit index: ", s.CommitIndex)
 	go func(leaderCommitIndex int) {
 		s.Server.CommitEntries(leaderCommitIndex)
 	}(newCommitIndex)
 }
+
 func isLastEntryInSync(leaderLastLogIndex int, leaderLastLogTerm int, lastEntry entry.Entry) bool {
 	if leaderLastLogIndex != 0 {
 		if lastEntry.IsEmpty() {
@@ -121,6 +123,7 @@ func isLastEntryInSync(leaderLastLogIndex int, leaderLastLogTerm int, lastEntry 
 	}
 	return true
 }
+
 func mapRaftEntriesToEntries(rpcEntries []*pb.Entry) []entry.Entry {
 	var entries []entry.Entry
 	for _, raftEntry := range rpcEntries {
@@ -128,6 +131,7 @@ func mapRaftEntriesToEntries(rpcEntries []*pb.Entry) []entry.Entry {
 	}
 	return entries
 }
+
 func getEntryFromRaftEntry(rpcEntry *pb.Entry) entry.Entry {
 	entry := entry.Entry{Key: rpcEntry.Key, Index: int(rpcEntry.Index), Value: int(rpcEntry.Value), TermNumber: int(rpcEntry.TermNumber)}
 	return entry

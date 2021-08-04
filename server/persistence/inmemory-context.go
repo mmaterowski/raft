@@ -69,7 +69,7 @@ func (c *InMemoryContext) DeleteAllEntriesStartingFrom(ctx context.Context, inde
 	}
 	if index >= len(c.entries) {
 		log.Printf("Got request to delete entries outside of entries length")
-		return ErrDeleteOutsideOfRange
+		return errDeleteOutsideOfRange
 	}
 	c.entries = c.entries[0:index]
 	return nil
