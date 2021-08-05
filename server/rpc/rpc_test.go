@@ -15,7 +15,7 @@ func TestAppendFailsIfLeadersTermLowerThanCurrentTerm(t *testing.T) {
 
 	inMemContext.SetCurrentTerm(context.Background(), 10)
 
-	s.StartServer("TestServ")
+	s.StartServer("TestServ", true)
 
 	request := pb.AppendEntriesRequest{Term: 3}
 	reply, _ := s.AppendEntries(context.Background(), &request)
@@ -31,7 +31,7 @@ func TestAppendSuccessIfLeadersTermHigherThanCurrentTerm(t *testing.T) {
 
 	inMemContext.SetCurrentTerm(context.Background(), 1)
 
-	s.StartServer("TestServ")
+	s.StartServer("TestServ", true)
 
 	request := pb.AppendEntriesRequest{Term: 10}
 	reply, _ := s.AppendEntries(context.Background(), &request)
@@ -46,7 +46,7 @@ func TestAppendSuccessIfNoEntriesToAppend(t *testing.T) {
 	s.AppRepository = persistence.Db{AppRepository: &inMemContext}
 	inMemContext.SetCurrentTerm(context.Background(), 1)
 
-	s.StartServer("TestServ")
+	s.StartServer("TestServ", true)
 
 	request := pb.AppendEntriesRequest{Term: 10, Entries: []*pb.Entry{}}
 	reply, _ := s.AppendEntries(context.Background(), &request)
@@ -60,7 +60,7 @@ func TestAppendDoNotFailIfMoreThanOneEntryInRequest(t *testing.T) {
 	s := Server{}
 	s.AppRepository = persistence.Db{AppRepository: &inMemContext}
 	inMemContext.SetCurrentTerm(context.Background(), 1)
-	s.StartServer("TestServ")
+	s.StartServer("TestServ", true)
 	entries := make([]*pb.Entry, 2)
 	request := pb.AppendEntriesRequest{Term: 10, Entries: entries}
 	reply, _ := s.AppendEntries(context.Background(), &request)
@@ -78,7 +78,7 @@ func TestLastEntryFoundButDoesNotMatchWithLeaderTerm(t *testing.T) {
 	inMemContext.PersistValue(context.Background(), "A", 2, crrentTerm)
 	inMemContext.PersistValue(context.Background(), "B", 3, crrentTerm)
 
-	s.StartServer("TestServ")
+	s.StartServer("TestServ", true)
 
 	entries := make([]*pb.Entry, 1)
 	prevLogIndex := 1
@@ -102,7 +102,7 @@ func TestLastEntryFoundAndMatchesWithLeaderTerm(t *testing.T) {
 	inMemContext.PersistValue(context.Background(), "A", 2, crrentTerm)
 	inMemContext.PersistValue(context.Background(), "B", 3, crrentTerm)
 
-	s.StartServer("TestServ")
+	s.StartServer("TestServ", true)
 
 	entries := make([]*pb.Entry, 1)
 	entries[0] = &pb.Entry{Index: 2, Value: 10, Key: "z", TermNumber: 10}
@@ -127,7 +127,7 @@ func TestLastEntryOnFollowerDoesNotExist(t *testing.T) {
 	inMemContext.PersistValue(context.Background(), "A", 2, crrentTerm)
 	inMemContext.PersistValue(context.Background(), "B", 3, crrentTerm)
 
-	s.StartServer("TestServ")
+	s.StartServer("TestServ", true)
 
 	entries := make([]*pb.Entry, 1)
 	prevLogIndex := 3

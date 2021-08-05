@@ -63,10 +63,6 @@ func (s SqlLiteRepository) PersistValue(ctx context.Context, key string, value i
 	}
 
 	lastInsertedId, err := insertResult.LastInsertId()
-	if guard.AgainstNegativeValue(int(lastInsertedId)) {
-		return &entry.Entry{}, err
-	}
-
 	entry, createErr := entry.New(int(lastInsertedId), value, termNumber, key)
 	return entry, createErr
 }

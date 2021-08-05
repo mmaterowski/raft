@@ -2,9 +2,9 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"net/http"
 	"strconv"
 	"time"
@@ -18,6 +18,7 @@ import (
 	raftServer "github.com/mmaterowski/raft/raft_server"
 	. "github.com/mmaterowski/raft/rpc_client"
 	structs "github.com/mmaterowski/raft/structs"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/gorilla/mux"
 	"google.golang.org/grpc"
@@ -30,6 +31,8 @@ var retryIntervalValue = 1 * time.Second
 var cancelHandlesForOngoingSyncRequest = make(map[string]context.CancelFunc)
 
 type RaftHttpServer struct {
+	RaftServerReference                *raftServer.Server
+	RpcClientReference                 *Client
 	raftServer                         *raftServer.Server
 	cancelHandlesForOngoingSyncRequest map[string]context.CancelFunc
 }
@@ -91,31 +94,30 @@ func GetKeyValue(w http.ResponseWriter, r *http.Request) {
 	data := ValueResponse{Value: entry.Value}
 	log.Println("Getting key value")
 	log.Println(helpers.PrettyPrint(entry))
-	respond.With(w, r, http.StatusOK, data)
+	json.NewEncoder(w).Encode(data)
 }
 
 func AcceptLogEntry(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	w.Header().Set("Content-Type", "application/json")
 	key, value, err := getKeyAndValue(r)
+	requestLogContext := log.WithFields(log.Fields{"request": r.Body, "key": key, "value": value})
+
 	if key == "" {
 		return
 	}
 
 	Check(err)
-	makeSureLastEntryDataIsAvailable(ctx)
+	RaftServerReference.MakeSureLastEntryDataIsAvailable()
 	entry, persistErr := RaftServerReference.AppRepository.PersistValue(ctx, key, value, RaftServerReference.CurrentTerm)
 	if persistErr != nil {
-		log.Print("Error while persisting entry", persistErr)
-	}
-	log.Println("Leader persisted value: ", entry)
-	if entry.IsEmpty() {
+		requestLogContext.Error("Error while persisting entry", persistErr)
 		respond.With(w, r, http.StatusOK, PutResponse{Success: false})
-		return
 	}
 
-	entries := []*raft_rpc.Entry{}
-	entries = append(entries, &pb.Entry{Index: int32(entry.Index), Value: int32(entry.Value), Key: entry.Key, TermNumber: int32(entry.TermNumber)})
+	requestLogContext.WithField("entry", entry).Info("Leader persisted entry")
+
+	entries := []*raft_rpc.Entry{&pb.Entry{Index: int32(entry.Index), Value: int32(entry.Value), Key: entry.Key, TermNumber: int32(entry.TermNumber)}}
 
 	cancelOngoingSyncRequest()
 	orderFollowersToSyncTheirLog(context.Background(), entries)

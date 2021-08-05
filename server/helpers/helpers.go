@@ -3,11 +3,12 @@ package helpers
 import (
 	"encoding/json"
 	"io"
-	"log"
 	"os"
 	"reflect"
 	"runtime"
 	"strings"
+
+	log "github.com/sirupsen/logrus"
 )
 
 func Check(e error) {

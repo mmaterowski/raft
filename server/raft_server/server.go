@@ -144,6 +144,17 @@ func (s *Server) CommitEntries(leaderCommitIndex int) error {
 	return nil
 }
 
+func (server *Server) MakeSureLastEntryDataIsAvailable() {
+	entry, _ := server.AppRepository.GetLastEntry(context.Background())
+	if !entry.IsEmpty() {
+		server.PreviousEntryIndex = entry.Index
+		server.PreviousEntryTerm = entry.TermNumber
+		return
+	}
+	server.PreviousEntryIndex = consts.NoPreviousEntryValue
+	server.PreviousEntryTerm = consts.TermInitialValue
+}
+
 func (server *Server) SetupElection() {
 	go func() {
 		for {
@@ -229,4 +240,22 @@ func (server *Server) StartHeartbeat() {
 			}
 		}
 	}()
+}
+
+func (server *Server) ApplyEntryToState(entry *entry.Entry) {
+	if entry.IsEmpty() {
+		log.Warn("Tried to apply empty entry to state.")
+		return
+	}
+
+	(*server.State)[entry.Key] = *entry
+}
+
+func (server *Server) SetCommitIndex(index int) {
+	if guard.AgainstNegativeValue(index) {
+		log.Warn("Tried to set commit index to negative value")
+	}
+
+	server.CommitIndex = index
+
 }

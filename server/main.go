@@ -18,19 +18,16 @@ import (
 	"google.golang.org/grpc"
 )
 
-var server *raft.Server
-
 func main() {
 
 	log.SetFormatter(&nested.Formatter{})
-
 	helpers.PrintAsciiHelloString()
 	env := getEnv()
 	serverId := getServerId(env)
 	config := persistence.GetDbConfig(env)
 	db := persistence.NewDb(config)
 	client := rpcClient.NewClient(serverId)
-	server = &raft.Server{AppRepository: db, RpcClient: *client}
+	server := &raft.Server{AppRepository: db, RpcClient: *client}
 	server.StartServer(serverId, isLocalEnvironment(env))
 
 	go handleRPC(server)
