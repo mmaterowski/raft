@@ -48,7 +48,7 @@ var (
 	commitIndexInfo     = "Leader commitIndex: %d. Server commitIndex: %d"
 )
 
-func (s *Server) StartServer(id string, isLocalEnv bool) {
+func (s *Server) StartServer(id string, isLocalEnv bool, isIntegrationTesting bool) {
 	s.Id = id
 	s.IdentifyServer(isLocalEnv)
 	s.ServerType = structs.ServerType(structs.Candidate)
@@ -62,13 +62,18 @@ func (s *Server) StartServer(id string, isLocalEnv bool) {
 	s.AppRepository.SetCurrentTerm(context.Background(), consts.TermUninitializedValue)
 	s.CurrentTerm, _ = s.AppRepository.GetCurrentTerm(context.Background())
 	s.ServerType = structs.Follower
-	s.Election.ResetTicker = make(chan struct{})
 	s.TriggerHeartbeat = make(chan struct{})
 	s.HeartbeatTicker = time.NewTicker(consts.HeartbeatInterval)
 	seed := rand.NewSource(time.Now().UnixNano())
 	electionTimeout := rand.New(seed).Intn(100)*300 + 100
 	log.Infof(electionTimeoutInfo, electionTimeout, consts.HeartbeatInterval)
+
+	if isIntegrationTesting {
+		return
+	}
 	s.Election.Ticker = time.NewTicker(consts.HeartbeatInterval + time.Duration(electionTimeout)*time.Millisecond)
+	s.Election.ResetTicker = make(chan struct{})
+
 }
 
 func (s *Server) IdentifyServer(local bool) {
@@ -79,6 +84,7 @@ func (s *Server) IdentifyServer(local bool) {
 	}
 	if local {
 		s.Others = append(s.Others, consts.LaszloId, consts.RickyId)
+		return
 	}
 
 	switch s.Id {
@@ -222,11 +228,14 @@ func (server *Server) StartHeartbeat() {
 		return
 	}
 	server.HeartbeatTicker.Stop()
+	//not heartbeating with integration tests for kim, channel conflicts!
 	go func() {
 		for {
 			select {
 			case <-server.HeartbeatTicker.C:
-				server.Election.ResetTicker <- struct{}{}
+				if server.Election.ResetTicker != nil {
+					server.Election.ResetTicker <- struct{}{}
+				}
 				for _, otherServer := range server.Others {
 					go func(commitIndex int, term int, id string, otherServer string) {
 						request := protoBuff.AppendEntriesRequest{LeaderCommitIndex: int32(commitIndex), Term: int32(term), LeaderId: id}

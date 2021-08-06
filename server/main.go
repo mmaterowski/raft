@@ -7,6 +7,7 @@ import (
 
 	nested "github.com/antonfisher/nested-logrus-formatter"
 	api "github.com/mmaterowski/raft/api"
+	cancelService "github.com/mmaterowski/raft/cancel_service"
 	"github.com/mmaterowski/raft/consts"
 	helpers "github.com/mmaterowski/raft/helpers"
 	"github.com/mmaterowski/raft/persistence"
@@ -14,6 +15,7 @@ import (
 	raft "github.com/mmaterowski/raft/raft_server"
 	rpc "github.com/mmaterowski/raft/rpc"
 	rpcClient "github.com/mmaterowski/raft/rpc_client"
+	"github.com/mmaterowski/raft/structs"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 )
@@ -28,16 +30,24 @@ func main() {
 	db := persistence.NewDb(config)
 	client := rpcClient.NewClient(serverId)
 	server := &raft.Server{AppRepository: db, RpcClient: *client}
-	server.StartServer(serverId, isLocalEnvironment(env))
+	server.StartServer(serverId, isLocalEnvironment(env), isIntegrationTesting(env))
 
 	go handleRPC(server)
-	server.SetupElection()
+
+	if env == consts.Integrationtest {
+		if server.Id == consts.KimId {
+			server.ServerType = structs.Leader
+		}
+	}
+
+	if env != consts.Integrationtest {
+		server.SetupElection()
+	}
+
 	server.StartHeartbeat()
 
-	api.RaftServerReference = server
-	api.RpcClientReference = client
-	apiPort := getApiPort(env)
-	api.HandleRequests(apiPort)
+	api.InitApi(server, client, cancelService.NewSyncRequestService(), getApiPort(env))
+	api.HandleRequests()
 
 }
 
@@ -74,6 +84,10 @@ func getServerId(env string) string {
 
 func isLocalEnvironment(env string) bool {
 	return env == consts.LocalWithPersistence || env == consts.Local
+}
+
+func isIntegrationTesting(env string) bool {
+	return env == consts.Integrationtest
 }
 
 func handleRPC(serverReference *raft.Server) {
