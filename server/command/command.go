@@ -6,12 +6,12 @@ import (
 
 	"github.com/mmaterowski/raft/model/entry"
 
-	syncRequest "github.com/mmaterowski/raft/cancel_service"
 	. "github.com/mmaterowski/raft/persistence"
 	. "github.com/mmaterowski/raft/rpc/client"
 	"github.com/mmaterowski/raft/rpc/raft_rpc"
 	pb "github.com/mmaterowski/raft/rpc/raft_rpc"
 	raftServer "github.com/mmaterowski/raft/server"
+	"github.com/mmaterowski/raft/services"
 	"github.com/mmaterowski/raft/utils/consts"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
@@ -25,14 +25,14 @@ type AcceptLogEntry struct {
 type AcceptLogEntryHandler struct {
 	server             *raftServer.Server
 	repo               AppRepository
-	syncRequestService *syncRequest.SyncRequestService
+	syncRequestService *services.SyncRequestService
 	rpcClient          *Client
 	syncLogChannel     chan struct{}
 }
 
 var retryIntervalValue = 1 * time.Second
 
-func NewAcceptLogEntryHandler(repo AppRepository, server *raftServer.Server, onGoingSyncReq *syncRequest.SyncRequestService, client *Client) AcceptLogEntryHandler {
+func NewAcceptLogEntryHandler(repo AppRepository, server *raftServer.Server, onGoingSyncReq *services.SyncRequestService, client *Client) AcceptLogEntryHandler {
 	if repo == nil {
 		panic("nil repo")
 	}
@@ -123,7 +123,7 @@ func validatePreviousLogIndex(logCtx *log.Entry, previousIndex int) {
 	}
 }
 
-func retryUntilNoErrorReceived(client pb.RaftRpcClient, cancelService *syncRequest.SyncRequestService, ctx context.Context, appendEntriesRequest *pb.AppendEntriesRequest, serverName string) (*pb.AppendEntriesReply, bool) {
+func retryUntilNoErrorReceived(client pb.RaftRpcClient, cancelService *services.SyncRequestService, ctx context.Context, appendEntriesRequest *pb.AppendEntriesRequest, serverName string) (*pb.AppendEntriesReply, bool) {
 	reply, rpcRequestError := client.AppendEntries(ctx, appendEntriesRequest, grpc.EmptyCallOption{})
 	if rpcRequestError != nil {
 		for rpcRequestError != nil {

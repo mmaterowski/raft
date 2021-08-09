@@ -8,12 +8,12 @@ import (
 	"strconv"
 
 	"github.com/gorilla/mux"
-	syncRequest "github.com/mmaterowski/raft/cancel_service"
 	command "github.com/mmaterowski/raft/command"
 	"github.com/mmaterowski/raft/model/entry"
 	"github.com/mmaterowski/raft/model/server"
 	"github.com/mmaterowski/raft/rpc/client"
 	raftServer "github.com/mmaterowski/raft/server"
+	"github.com/mmaterowski/raft/services"
 	"github.com/mmaterowski/raft/utils/consts"
 	"github.com/mmaterowski/raft/utils/helpers"
 	log "github.com/sirupsen/logrus"
@@ -23,7 +23,7 @@ import (
 var raftServerReference *raftServer.Server
 var rpcClientReference *client.Client
 var port string
-var cancelService *syncRequest.SyncRequestService
+var cancelService *services.SyncRequestService
 
 type StatusResponse struct {
 	Status server.ServerType
@@ -37,7 +37,7 @@ type PutResponse struct {
 	Success bool
 }
 
-func InitApi(RaftServerReference *raftServer.Server, RpcClientReference *client.Client, CancelService *syncRequest.SyncRequestService, Port string) {
+func InitApi(RaftServerReference *raftServer.Server, RpcClientReference *client.Client, CancelService *services.SyncRequestService, Port string) {
 	if RaftServerReference == nil {
 		log.Fatal("No raft server reference set")
 	}

@@ -8,13 +8,13 @@ import (
 	nested "github.com/antonfisher/nested-logrus-formatter"
 	"github.com/gin-gonic/gin"
 	api "github.com/mmaterowski/raft/api"
-	cancelService "github.com/mmaterowski/raft/cancel_service"
 	server_model "github.com/mmaterowski/raft/model/server"
 	"github.com/mmaterowski/raft/persistence"
 	rpcClient "github.com/mmaterowski/raft/rpc/client"
 	protoBuff "github.com/mmaterowski/raft/rpc/raft_rpc"
-	rpc "github.com/mmaterowski/raft/rpc/raft_rpc"
+	rpcServer "github.com/mmaterowski/raft/rpc/server"
 	raft "github.com/mmaterowski/raft/server"
+	"github.com/mmaterowski/raft/services"
 	"github.com/mmaterowski/raft/utils/consts"
 	"github.com/mmaterowski/raft/utils/helpers"
 	log "github.com/sirupsen/logrus"
@@ -52,7 +52,7 @@ func StartApplication() {
 	mapUrls()
 	router.Run("8080")
 
-	api.InitApi(server, client, cancelService.NewSyncRequestService(), getApiPort(env))
+	api.InitApi(server, client, services.NewSyncRequestService(), getApiPort(env))
 	api.HandleRequests()
 }
 
@@ -100,7 +100,7 @@ func handleRPC(serverReference *raft.Server) {
 	lis, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%d", port))
 	helpers.Check(err)
 	grpcServer := grpc.NewServer()
-	protoBuff.RegisterRaftRpcServer(grpcServer, &rpc.Server{Server: *serverReference})
+	protoBuff.RegisterRaftRpcServer(grpcServer, &rpcServer.Server{Server: *serverReference})
 	err = grpcServer.Serve(lis)
 	helpers.Check(err)
 	log.WithField("port", lis.Addr().String()).Info("RPC started listening")

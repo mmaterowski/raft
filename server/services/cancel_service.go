@@ -1,4 +1,4 @@
-package cancel_service
+package services
 
 import (
 	"context"

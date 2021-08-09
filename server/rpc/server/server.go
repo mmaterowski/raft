@@ -4,10 +4,10 @@ import (
 	"context"
 	"log"
 
-	"github.com/mmaterowski/raft/helpers"
 	"github.com/mmaterowski/raft/model/entry"
-	s "github.com/mmaterowski/raft/raft_server"
 	pb "github.com/mmaterowski/raft/rpc/raft_rpc"
+	s "github.com/mmaterowski/raft/server"
+	"github.com/mmaterowski/raft/utils/helpers"
 )
 
 type Server struct {

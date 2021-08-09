@@ -13,8 +13,8 @@ import (
 
 	"github.com/google/uuid"
 	api "github.com/mmaterowski/raft/api"
-	"github.com/mmaterowski/raft/consts"
-	"github.com/mmaterowski/raft/helpers"
+	"github.com/mmaterowski/raft/utils/consts"
+	"github.com/mmaterowski/raft/utils/helpers"
 	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
