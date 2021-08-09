@@ -4,15 +4,15 @@ import (
 	"context"
 	"time"
 
-	"github.com/mmaterowski/raft/entry"
+	"github.com/mmaterowski/raft/model/entry"
 
 	syncRequest "github.com/mmaterowski/raft/cancel_service"
-	"github.com/mmaterowski/raft/consts"
 	. "github.com/mmaterowski/raft/persistence"
-	"github.com/mmaterowski/raft/raft_rpc"
-	pb "github.com/mmaterowski/raft/raft_rpc"
-	raftServer "github.com/mmaterowski/raft/raft_server"
-	. "github.com/mmaterowski/raft/rpc_client"
+	. "github.com/mmaterowski/raft/rpc/client"
+	"github.com/mmaterowski/raft/rpc/raft_rpc"
+	pb "github.com/mmaterowski/raft/rpc/raft_rpc"
+	raftServer "github.com/mmaterowski/raft/server"
+	"github.com/mmaterowski/raft/utils/consts"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 )

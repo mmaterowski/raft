@@ -1,0 +1,47 @@
+syntax = "proto3";
+option go_package = "mati/raft_rpc";
+
+//Generate
+//protoc --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative ./raft.proto
+
+service RaftRpc {
+  rpc AppendEntries (AppendEntriesRequest) returns (AppendEntriesReply) {}
+  rpc RequestVote (RequestVoteRequest) returns (RequestVoteReply) {}
+}
+
+message Entry {
+  int32 Index = 1;
+  int32 Value= 2;
+  string Key = 3;
+  int32 TermNumber=4;
+}
+
+message Empty {
+}
+
+message AppendEntriesRequest  {
+  int32 Term = 1;
+  string 	LeaderId = 2;
+  int32	PreviousLogIndex = 3;
+  int32	PreviousLogTerm = 4;
+  repeated Entry Entries = 5;
+  int32 LeaderCommitIndex = 6;
+}
+
+message AppendEntriesReply {
+  int32 Term = 1;
+  bool Success = 2;
+}
+
+message RequestVoteRequest {
+  int32 Term = 1;
+  string CandidateID = 2;
+  int32 LastLogIndex = 3;
+  int32 LastLogTerm = 4;
+}
+
+message RequestVoteReply{
+  int32 Term = 1;
+  bool VoteGranted = 2;
+}
+

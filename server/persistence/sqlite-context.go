@@ -10,9 +10,9 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/mmaterowski/raft/consts"
-	"github.com/mmaterowski/raft/entry"
-	"github.com/mmaterowski/raft/guard"
+	"github.com/mmaterowski/raft/model/entry"
+	"github.com/mmaterowski/raft/utils/consts"
+	"github.com/mmaterowski/raft/utils/guard"
 )
 
 type SqlLiteRepository struct {
@@ -24,14 +24,13 @@ type SqlLiteRepository struct {
 var lock sync.Mutex
 
 var (
-	errCantConnect             = errors.New("error connecting to SQL")
-	errDbNotInitialized        = errors.New("db not initialized properly")
-	errTermNumberLowerThanZero = errors.New("cannot create entry with term number lower than zero")
-	errNoRowsUpdated           = errors.New("no rows were updated")
-	errCouldNotReconstructLog  = errors.New("couldnt reconstruct log. Probably there's invalid entry in log")
-	errInvalidArgument         = errors.New("argument passed to method was invalid")
-	errDeleteOutsideOfRange    = errors.New("could not delete entries that are outside of entries length")
-	errQueryingRow             = errors.New("something bad happened")
+	errCantConnect            = errors.New("error connecting to SQL")
+	errDbNotInitialized       = errors.New("db not initialized properly")
+	errNoRowsUpdated          = errors.New("no rows were updated")
+	errCouldNotReconstructLog = errors.New("couldnt reconstruct log. Probably there's invalid entry in log")
+	errInvalidArgument        = errors.New("argument passed to method was invalid")
+	errDeleteOutsideOfRange   = errors.New("could not delete entries that are outside of entries length")
+	errQueryingRow            = errors.New("something bad happened")
 )
 
 func NewSqlLiteRepository(dbPath string) (SqlLiteRepository, error) {

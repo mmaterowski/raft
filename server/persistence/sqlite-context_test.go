@@ -6,7 +6,7 @@ import (
 
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/mmaterowski/raft/consts"
-	"github.com/mmaterowski/raft/entry"
+	"github.com/mmaterowski/raft/model/entry"
 )
 
 func TestSqlLiteGetEntryAtIndex(t *testing.T) {

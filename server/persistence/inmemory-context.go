@@ -4,7 +4,7 @@ import (
 	"context"
 	"log"
 
-	"github.com/mmaterowski/raft/entry"
+	"github.com/mmaterowski/raft/model/entry"
 )
 
 type InMemoryContext struct {

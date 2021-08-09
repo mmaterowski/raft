@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/mmaterowski/raft/persistence"
-	pb "github.com/mmaterowski/raft/raft_rpc"
+	pb "github.com/mmaterowski/raft/rpc/raft_rpc"
 )
 
 func TestAppendFailsIfLeadersTermLowerThanCurrentTerm(t *testing.T) {

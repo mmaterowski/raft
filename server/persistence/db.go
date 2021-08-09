@@ -4,9 +4,9 @@ import (
 	"context"
 	"log"
 
-	"github.com/mmaterowski/raft/consts"
-	"github.com/mmaterowski/raft/entry"
-	"github.com/mmaterowski/raft/helpers"
+	"github.com/mmaterowski/raft/model/entry"
+	"github.com/mmaterowski/raft/utils/consts"
+	"github.com/mmaterowski/raft/utils/helpers"
 )
 
 type Setup interface {

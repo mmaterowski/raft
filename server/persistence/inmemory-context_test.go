@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/mmaterowski/raft/consts"
-	"github.com/mmaterowski/raft/entry"
+	"github.com/mmaterowski/raft/model/entry"
 )
 
 func TestInMemGetEntryAtIndex(t *testing.T) {

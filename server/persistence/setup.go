@@ -7,7 +7,7 @@ import (
 	"time"
 
 	_ "github.com/mattn/go-sqlite3"
-	"github.com/mmaterowski/raft/consts"
+	"github.com/mmaterowski/raft/utils/consts"
 )
 
 func (s *SqlLiteRepository) setDbHandle(dbPath string) bool {

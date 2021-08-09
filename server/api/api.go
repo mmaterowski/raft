@@ -10,24 +10,23 @@ import (
 	"github.com/gorilla/mux"
 	syncRequest "github.com/mmaterowski/raft/cancel_service"
 	command "github.com/mmaterowski/raft/command"
-	"github.com/mmaterowski/raft/consts"
-	"github.com/mmaterowski/raft/entry"
-	"github.com/mmaterowski/raft/helpers"
-	. "github.com/mmaterowski/raft/helpers"
-	raftServer "github.com/mmaterowski/raft/raft_server"
-	. "github.com/mmaterowski/raft/rpc_client"
-	structs "github.com/mmaterowski/raft/structs"
+	"github.com/mmaterowski/raft/model/entry"
+	"github.com/mmaterowski/raft/model/server"
+	"github.com/mmaterowski/raft/rpc/client"
+	raftServer "github.com/mmaterowski/raft/server"
+	"github.com/mmaterowski/raft/utils/consts"
+	"github.com/mmaterowski/raft/utils/helpers"
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/matryer/respond.v1"
 )
 
 var raftServerReference *raftServer.Server
-var rpcClientReference *Client
+var rpcClientReference *client.Client
 var port string
 var cancelService *syncRequest.SyncRequestService
 
 type StatusResponse struct {
-	Status structs.ServerType
+	Status server.ServerType
 }
 
 type ValueResponse struct {
@@ -38,7 +37,7 @@ type PutResponse struct {
 	Success bool
 }
 
-func InitApi(RaftServerReference *raftServer.Server, RpcClientReference *Client, CancelService *syncRequest.SyncRequestService, Port string) {
+func InitApi(RaftServerReference *raftServer.Server, RpcClientReference *client.Client, CancelService *syncRequest.SyncRequestService, Port string) {
 	if RaftServerReference == nil {
 		log.Fatal("No raft server reference set")
 	}
@@ -82,7 +81,7 @@ func getStatus(w http.ResponseWriter, r *http.Request) {
 func persistAndCommitValue(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	key, value, err := getKeyAndValueFromRequestArgs(r)
-	Check(err)
+	helpers.Check(err)
 	entry, _ := raftServerReference.AppRepository.PersistValue(r.Context(), key, value, raftServerReference.CurrentTerm)
 	(*raftServerReference.State)[entry.Key] = *entry
 	raftServerReference.CommitIndex = entry.Index
@@ -128,7 +127,7 @@ func acceptLogEntry(w http.ResponseWriter, r *http.Request) {
 	if key == "" {
 		return
 	}
-	Check(err)
+	helpers.Check(err)
 
 	requestLogContext := log.WithFields(log.Fields{"request": r.Body, "key": key, "value": value})
 
