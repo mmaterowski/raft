@@ -29,7 +29,6 @@ type AcceptLogEntryHandler struct {
 var retryIntervalValue = 1 * time.Second
 
 func NewAcceptLogEntryHandler() AcceptLogEntryHandler {
-
 	syncLogChannel := make(chan struct{})
 	return AcceptLogEntryHandler{syncLogChannel}
 }

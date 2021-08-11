@@ -287,5 +287,4 @@ func (server *server) SetCommitIndex(index int) {
 	}
 
 	State.CommitIndex = index
-
 }

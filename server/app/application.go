@@ -28,7 +28,7 @@ func StartApplication() {
 	helpers.PrintAsciiHelloString()
 	env := getEnv()
 	serverId := getServerId(env)
-	config := persistence.Database.GetConfig(env)
+	config := persistence.Database.GetStandardConfig(env)
 	persistence.Database.Init(config)
 	rpcClient.Client.Setup(serverId)
 	raft.Raft.StartServer(serverId, isLocalEnvironment(env), isIntegrationTesting(env))

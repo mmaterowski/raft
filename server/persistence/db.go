@@ -10,12 +10,12 @@ import (
 )
 
 var (
-	Database   DatabaseInterface = &Db{}
-	Repository AppRepository
+	Database   databaseInterface = &db{}
+	Repository appRepository
 	config     DbConfig = DbConfig{}
 )
 
-type AppRepository interface {
+type appRepository interface {
 	//NewEntryVM
 	PersistValue(ctx context.Context, key string, value int, termNumber int) (*entry.Entry, error)
 	PersistValues(ctx context.Context, entries []entry.Entry) (*entry.Entry, error)
@@ -34,15 +34,15 @@ type DbConfig struct {
 	InMemory bool
 }
 
-type Db struct {
+type db struct {
 }
 
-type DatabaseInterface interface {
+type databaseInterface interface {
 	Init(config DbConfig)
-	GetConfig(env string) DbConfig
+	GetStandardConfig(env string) DbConfig
 }
 
-func (db *Db) GetConfig(env string) DbConfig {
+func (db *db) GetStandardConfig(env string) DbConfig {
 	config = DbConfig{}
 	config.InMemory = env == consts.Local
 	if env == consts.LocalWithPersistence {
@@ -54,7 +54,7 @@ func (db *Db) GetConfig(env string) DbConfig {
 	return config
 }
 
-func (db *Db) Init(config DbConfig) {
+func (db *db) Init(config DbConfig) {
 	if config.InMemory {
 		log.Print("Using in memory db")
 		Repository = &InMemoryContext{}

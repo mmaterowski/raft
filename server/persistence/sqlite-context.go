@@ -32,6 +32,20 @@ var (
 	errQueryingRow            = errors.New("something bad happened")
 )
 
+var (
+	insertEntrySql               = "INSERT INTO Entries (Value, Key, TermNumber) VALUES (?, ?, ?)"
+	insertEntriesSql             = "INSERT INTO Entries (Value, Key, TermNumber) VALUES"
+	updateCurrentTermSql         = `UPDATE Term SET CurrentTerm=? WHERE UniqueEntryId=?`
+	updateVotedForSql            = `UPDATE VotedFor SET VotedForId=? WHERE UniqueEntryId=?`
+	resetAutoincrementSql        = `UPDATE "sqlite_sequence" SET "seq" = (SELECT COUNT("Index")-1 FROM "Entries")-1 WHERE name = "Entries"`
+	queryLastEntrySql            = `SELECT* FROM Entries WHERE "Index"=(SELECT MAX("Index") FROM Entries)`
+	queryEntryAtIndexSql         = `SELECT * FROM Entries WHERE "Index"=?`
+	queryCurrentTermSql          = `SELECT CurrentTerm FROM Term WHERE "UniqueEntryId"=?`
+	queryVotedForSql             = `SELECT VotedForId FROM VotedFor WHERE "UniqueEntryId"=?`
+	getLogSql                    = `SELECT * FROM Entries ORDER BY "Index"`
+	deleteEntriesStartingFromSql = `DELETE FROM Entries Where "Index" >= ?`
+)
+
 func NewSqlLiteRepository(dbPath string) (SqlLiteRepository, error) {
 	repo := SqlLiteRepository{uniqueEntryId: "ee9fdd8ac5b44fe5866e99bfc9e35932"}
 	connected := repo.setDbHandle(dbPath)
@@ -52,7 +66,7 @@ func NewSqlLiteRepository(dbPath string) (SqlLiteRepository, error) {
 func (s SqlLiteRepository) PersistValue(ctx context.Context, key string, value int, termNumber int) (*entry.Entry, error) {
 	lock.Lock()
 	defer lock.Unlock()
-	insertStatement, _ := s.handle.Prepare("INSERT INTO Entries (Value, Key, TermNumber) VALUES (?, ?, ?)")
+	insertStatement, _ := s.handle.Prepare(insertEntrySql)
 	defer insertStatement.Close()
 	insertResult, err := insertStatement.Exec(value, key, termNumber)
 
@@ -72,7 +86,7 @@ func (s SqlLiteRepository) PersistValues(ctx context.Context, entries []entry.En
 		return &entry.Entry{}, nil
 	}
 
-	insert := "INSERT INTO Entries (Value, Key, TermNumber) VALUES "
+	insert := insertEntriesSql
 	for _, entry := range entries {
 		insert += fmt.Sprintf(`(%d,"%s",%d),`, entry.Value, entry.Key, entry.TermNumber)
 	}
@@ -94,10 +108,9 @@ func (db SqlLiteRepository) GetEntryAtIndex(ctx context.Context, index int) (*en
 		return &entry.Entry{}, errInvalidArgument
 	}
 
-	selectStatement := fmt.Sprintf(`SELECT * FROM Entries WHERE "Index"=%d`, index)
 	var createdIndex, value, term int
 	var key string
-	err := db.handle.QueryRow(selectStatement).Scan(&createdIndex, &value, &key, &term)
+	err := db.handle.QueryRow(queryEntryAtIndexSql, index).Scan(&createdIndex, &value, &key, &term)
 	if err != nil {
 		return &entry.Entry{}, err
 	}
@@ -105,10 +118,9 @@ func (db SqlLiteRepository) GetEntryAtIndex(ctx context.Context, index int) (*en
 }
 
 func (db SqlLiteRepository) GetLastEntry(ctx context.Context) (*entry.Entry, error) {
-	selectStatement := `SELECT* FROM Entries WHERE "Index"=(SELECT MAX("Index") FROM Entries)`
 	var createdIndex, value, term int
 	var key string
-	err := db.handle.QueryRow(selectStatement).Scan(&createdIndex, &value, &key, &term)
+	err := db.handle.QueryRow(queryLastEntrySql).Scan(&createdIndex, &value, &key, &term)
 	if err != nil {
 		return &entry.Entry{}, err
 	}
@@ -116,11 +128,10 @@ func (db SqlLiteRepository) GetLastEntry(ctx context.Context) (*entry.Entry, err
 }
 
 func (db SqlLiteRepository) GetCurrentTerm(ctx context.Context) (int, error) {
-	selectStatement := fmt.Sprintf(`SELECT CurrentTerm FROM Term WHERE "UniqueEntryId"="%s"`, db.uniqueEntryId)
 	currentTermNumber := consts.TermUninitializedValue
 	sqlRes := ""
 
-	err := db.handle.QueryRow(selectStatement).Scan(&sqlRes)
+	err := db.handle.QueryRow(queryCurrentTermSql, db.uniqueEntryId).Scan(&sqlRes)
 	if err == sql.ErrNoRows {
 		return currentTermNumber, err
 	}
@@ -140,9 +151,8 @@ func (db SqlLiteRepository) SetCurrentTerm(ctx context.Context, currentTerm int)
 		return errInvalidArgument
 	}
 
-	insertStatement := fmt.Sprintf(`UPDATE Term SET CurrentTerm="%d" WHERE UniqueEntryId="%s"`, currentTerm, db.uniqueEntryId)
-	statement, _ := db.handle.Prepare(insertStatement)
-	sqlRes, err := statement.Exec()
+	statement, _ := db.handle.Prepare(updateCurrentTermSql)
+	sqlRes, err := statement.Exec(currentTerm, db.uniqueEntryId)
 	if err != nil {
 		return err
 	}
@@ -155,9 +165,8 @@ func (db SqlLiteRepository) SetCurrentTerm(ctx context.Context, currentTerm int)
 }
 
 func (db SqlLiteRepository) GetVotedFor(ctx context.Context) (string, error) {
-	selectStatement := fmt.Sprintf(`SELECT VotedForId FROM VotedFor WHERE "UniqueEntryId"="%s"`, db.uniqueEntryId)
 	foundId := ""
-	err := db.handle.QueryRow(selectStatement).Scan(&foundId)
+	err := db.handle.QueryRow(queryVotedForSql, db.uniqueEntryId).Scan(&foundId)
 	if err == sql.ErrNoRows {
 		return foundId, err
 	} else if err != nil {
@@ -168,9 +177,8 @@ func (db SqlLiteRepository) GetVotedFor(ctx context.Context) (string, error) {
 }
 
 func (db SqlLiteRepository) SetVotedFor(ctx context.Context, votedForId string) error {
-	insertStatement := fmt.Sprintf(`UPDATE VotedFor SET VotedForId="%s" WHERE UniqueEntryId="%s"`, votedForId, db.uniqueEntryId)
-	statement, _ := db.handle.Prepare(insertStatement)
-	sqlRes, err := statement.Exec()
+	statement, _ := db.handle.Prepare(updateVotedForSql)
+	sqlRes, err := statement.Exec(votedForId, db.uniqueEntryId)
 	if err != nil {
 		return err
 	}
@@ -183,8 +191,7 @@ func (db SqlLiteRepository) SetVotedFor(ctx context.Context, votedForId string) 
 }
 
 func (db SqlLiteRepository) GetLog(ctx context.Context) (*[]entry.Entry, error) {
-	selectStatement := `SELECT * FROM Entries ORDER BY "Index"`
-	rows, err := db.handle.Query(selectStatement)
+	rows, err := db.handle.Query(getLogSql)
 	if err != nil {
 		return &[]entry.Entry{}, nil
 	}
@@ -227,16 +234,13 @@ func (db SqlLiteRepository) DeleteAllEntriesStartingFrom(ctx context.Context, in
 	if err != nil {
 		return err
 	}
-	delete := fmt.Sprintf(`DELETE FROM Entries Where "Index" >= %d`, index)
-	statement, _ := tx.Prepare(delete)
-	_, deleteErr := statement.Exec()
+	statement, _ := tx.Prepare(deleteEntriesStartingFromSql)
+	_, deleteErr := statement.Exec(index)
 	if deleteErr != nil {
 		return deleteErr
 	}
-	autoincrementResetStatement := `UPDATE "sqlite_sequence"
-	SET "seq" = (SELECT COUNT("Index")-1 FROM "Entries")-1
-	WHERE name = "Entries"`
-	statement, _ = tx.Prepare(autoincrementResetStatement)
+
+	statement, _ = tx.Prepare(resetAutoincrementSql)
 	_, incErr := statement.Exec()
 	tx.Commit()
 	return incErr
