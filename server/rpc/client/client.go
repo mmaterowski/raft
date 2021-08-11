@@ -3,36 +3,37 @@ package client
 import (
 	log "github.com/sirupsen/logrus"
 
-	pb "github.com/mmaterowski/raft/rpc/raft_rpc"
+	"github.com/mmaterowski/raft/rpc/raft_rpc"
 	"github.com/mmaterowski/raft/utils/consts"
 	"github.com/mmaterowski/raft/utils/helpers"
 	"google.golang.org/grpc"
 )
 
-type Client struct {
-	kimClient         pb.RaftRpcClient
-	rickyClient       pb.RaftRpcClient
-	laszloClient      pb.RaftRpcClient
+type client struct {
+	kimClient         raft_rpc.RaftRpcClient
+	rickyClient       raft_rpc.RaftRpcClient
+	laszloClient      raft_rpc.RaftRpcClient
 	setUpSuccessfully bool
 }
 
-func NewClient(serverId string) *Client {
-	c := &Client{}
-	c.SetupRpcClient(serverId)
-	return c
+var Client clientInterface = &client{}
+
+type clientInterface interface {
+	Setup(serverId string)
+	GetFor(serverId string) raft_rpc.RaftRpcClient
 }
 
-func (r *Client) SetupRpcClient(serverId string) {
+func (r *client) Setup(serverId string) {
 	if serverId == consts.KimId {
 		rickyServerPort := "ricky:6960"
 		rickyRpcClientConnection, err := grpc.Dial(rickyServerPort, grpc.WithInsecure())
 		helpers.Check(err)
-		r.rickyClient = pb.NewRaftRpcClient(rickyRpcClientConnection)
+		r.rickyClient = raft_rpc.NewRaftRpcClient(rickyRpcClientConnection)
 
 		laszloServerPort := "laszlo:6960"
 		laszloRpcClientConnection, err := grpc.Dial(laszloServerPort, grpc.WithInsecure())
 		helpers.Check(err)
-		r.laszloClient = pb.NewRaftRpcClient(laszloRpcClientConnection)
+		r.laszloClient = raft_rpc.NewRaftRpcClient(laszloRpcClientConnection)
 		r.setUpSuccessfully = true
 
 	}
@@ -41,12 +42,12 @@ func (r *Client) SetupRpcClient(serverId string) {
 		kimServerPort := "kim:6960"
 		kimRpcClientConnection, err := grpc.Dial(kimServerPort, grpc.WithInsecure())
 		helpers.Check(err)
-		r.kimClient = pb.NewRaftRpcClient(kimRpcClientConnection)
+		r.kimClient = raft_rpc.NewRaftRpcClient(kimRpcClientConnection)
 
 		laszloServerPort := "laszlo:6960"
 		laszloRpcClientConnection, err := grpc.Dial(laszloServerPort, grpc.WithInsecure())
 		helpers.Check(err)
-		r.laszloClient = pb.NewRaftRpcClient(laszloRpcClientConnection)
+		r.laszloClient = raft_rpc.NewRaftRpcClient(laszloRpcClientConnection)
 		r.setUpSuccessfully = true
 
 	}
@@ -55,12 +56,12 @@ func (r *Client) SetupRpcClient(serverId string) {
 		kimServerPort := "kim:6960"
 		kimRpcClientConnection, err := grpc.Dial(kimServerPort, grpc.WithInsecure())
 		helpers.Check(err)
-		r.kimClient = pb.NewRaftRpcClient(kimRpcClientConnection)
+		r.kimClient = raft_rpc.NewRaftRpcClient(kimRpcClientConnection)
 
 		rickyServerPort := "ricky:6960"
 		rickyRpcClientConnection, err := grpc.Dial(rickyServerPort, grpc.WithInsecure())
 		helpers.Check(err)
-		r.rickyClient = pb.NewRaftRpcClient(rickyRpcClientConnection)
+		r.rickyClient = raft_rpc.NewRaftRpcClient(rickyRpcClientConnection)
 		r.setUpSuccessfully = true
 
 	}
@@ -68,7 +69,7 @@ func (r *Client) SetupRpcClient(serverId string) {
 
 }
 
-func (r Client) GetClientFor(serverId string) pb.RaftRpcClient {
+func (r *client) GetFor(serverId string) raft_rpc.RaftRpcClient {
 	if !r.setUpSuccessfully {
 		panic("Clients not set up!")
 	}

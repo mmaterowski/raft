@@ -10,23 +10,20 @@ import (
 	"github.com/gorilla/mux"
 	command "github.com/mmaterowski/raft/command"
 	"github.com/mmaterowski/raft/model/entry"
-	"github.com/mmaterowski/raft/model/server"
-	"github.com/mmaterowski/raft/rpc/client"
-	raftServer "github.com/mmaterowski/raft/server"
-	"github.com/mmaterowski/raft/services"
+	server_model "github.com/mmaterowski/raft/model/server"
+	"github.com/mmaterowski/raft/persistence"
+	"github.com/mmaterowski/raft/server"
 	"github.com/mmaterowski/raft/utils/consts"
+	rest_errors "github.com/mmaterowski/raft/utils/errors"
 	"github.com/mmaterowski/raft/utils/helpers"
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/matryer/respond.v1"
 )
 
-var raftServerReference *raftServer.Server
-var rpcClientReference *client.Client
 var port string
-var cancelService *services.SyncRequestService
 
 type StatusResponse struct {
-	Status server.ServerType
+	Status server_model.ServerType
 }
 
 type ValueResponse struct {
@@ -37,25 +34,12 @@ type PutResponse struct {
 	Success bool
 }
 
-func InitApi(RaftServerReference *raftServer.Server, RpcClientReference *client.Client, CancelService *services.SyncRequestService, Port string) {
-	if RaftServerReference == nil {
-		log.Fatal("No raft server reference set")
-	}
+func InitApi(Port string) {
 
-	if RpcClientReference == nil {
-		log.Fatal("No rpc client reference set")
-	}
 	if Port == "" {
 		log.Fatal("No api port specified")
 	}
 
-	if CancelService == nil {
-		log.Fatal("No cancel service set")
-	}
-
-	raftServerReference = RaftServerReference
-	rpcClientReference = RpcClientReference
-	cancelService = CancelService
 	port = Port
 }
 
@@ -74,7 +58,7 @@ func HandleRequests() {
 
 func getStatus(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	data := StatusResponse{Status: raftServerReference.ServerType}
+	data := StatusResponse{Status: server.Type}
 	respond.With(w, r, http.StatusOK, data)
 }
 
@@ -82,9 +66,9 @@ func persistAndCommitValue(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	key, value, err := getKeyAndValueFromRequestArgs(r)
 	helpers.Check(err)
-	entry, _ := raftServerReference.AppRepository.PersistValue(r.Context(), key, value, raftServerReference.CurrentTerm)
-	(*raftServerReference.State)[entry.Key] = *entry
-	raftServerReference.CommitIndex = entry.Index
+	entry, _ := persistence.Repository.PersistValue(r.Context(), key, value, server.State.CurrentTerm)
+	(*server.State.Entries)[entry.Key] = *entry
+	server.State.CommitIndex = entry.Index
 	data := PutResponse{Success: !entry.IsEmpty()}
 	log.Print("Backdooring entry. Persisted and commited ", entry)
 	respond.With(w, r, http.StatusOK, data)
@@ -92,11 +76,11 @@ func persistAndCommitValue(w http.ResponseWriter, r *http.Request) {
 
 func deleteAllEntries(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	_ = raftServerReference.AppRepository.DeleteAllEntriesStartingFrom(r.Context(), 1)
-	(*raftServerReference.State) = map[string]entry.Entry{}
-	raftServerReference.CommitIndex = consts.LeaderCommitInitialValue
-	raftServerReference.PreviousEntryIndex = consts.NoPreviousEntryValue
-	raftServerReference.PreviousEntryTerm = consts.TermInitialValue
+	_ = persistence.Repository.DeleteAllEntriesStartingFrom(r.Context(), 1)
+	(*server.State.Entries) = map[string]entry.Entry{}
+	server.State.CommitIndex = consts.LeaderCommitInitialValue
+	server.State.PreviousEntryIndex = consts.NoPreviousEntryValue
+	server.State.PreviousEntryTerm = consts.TermInitialValue
 	data := PutResponse{Success: true}
 	log.Print("Backdooring. Deleted all entries and cleared state")
 	respond.With(w, r, http.StatusOK, data)
@@ -113,7 +97,7 @@ func getKeyValue(w http.ResponseWriter, r *http.Request) {
 		respond.With(w, r, http.StatusInternalServerError, message)
 	}
 
-	entry := (*raftServerReference.State)[key]
+	entry := (*server.State.Entries)[key]
 	data := ValueResponse{Value: entry.Value}
 	log.Println("Getting key value")
 	log.Println(helpers.PrettyPrint(entry))
@@ -123,15 +107,21 @@ func getKeyValue(w http.ResponseWriter, r *http.Request) {
 func acceptLogEntry(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	w.Header().Set("Content-Type", "application/json")
+	//change http to accept json key+value
+	//make service accept new struct NewEntryViewModel
+	//validate using separate method
+
 	key, value, err := getKeyAndValueFromRequestArgs(r)
-	if key == "" {
+
+	if err != nil {
+		restErr := rest_errors.NewBadRequestError("Error getting key and value from request body")
+		respond.With(w, r, restErr.Status, restErr)
 		return
 	}
-	helpers.Check(err)
 
 	requestLogContext := log.WithFields(log.Fields{"request": r.Body, "key": key, "value": value})
 
-	handler := command.NewAcceptLogEntryHandler(raftServerReference.AppRepository, raftServerReference, cancelService, rpcClientReference)
+	handler := command.NewAcceptLogEntryHandler()
 	cmd := command.AcceptLogEntry{Key: key, Value: value}
 	err = handler.Handle(ctx, cmd)
 	if err != nil {
@@ -160,5 +150,5 @@ func getKeyAndValueFromRequestArgs(r *http.Request) (string, int, error) {
 }
 
 func home(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintf(w, "Raft module! RaftServerReference: "+raftServerReference.Id)
+	fmt.Fprintf(w, "Raft module! RaftServerReference: "+server.Id)
 }

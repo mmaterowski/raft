@@ -5,12 +5,12 @@ import (
 	"time"
 
 	"github.com/mmaterowski/raft/model/entry"
+	"github.com/mmaterowski/raft/persistence"
+	"github.com/mmaterowski/raft/server"
 
-	. "github.com/mmaterowski/raft/persistence"
-	. "github.com/mmaterowski/raft/rpc/client"
+	"github.com/mmaterowski/raft/rpc/client"
 	"github.com/mmaterowski/raft/rpc/raft_rpc"
 	pb "github.com/mmaterowski/raft/rpc/raft_rpc"
-	raftServer "github.com/mmaterowski/raft/server"
 	"github.com/mmaterowski/raft/services"
 	"github.com/mmaterowski/raft/utils/consts"
 	log "github.com/sirupsen/logrus"
@@ -23,24 +23,15 @@ type AcceptLogEntry struct {
 }
 
 type AcceptLogEntryHandler struct {
-	server             *raftServer.Server
-	repo               AppRepository
-	syncRequestService *services.SyncRequestService
-	rpcClient          *Client
-	syncLogChannel     chan struct{}
+	syncLogChannel chan struct{}
 }
 
 var retryIntervalValue = 1 * time.Second
 
-func NewAcceptLogEntryHandler(repo AppRepository, server *raftServer.Server, onGoingSyncReq *services.SyncRequestService, client *Client) AcceptLogEntryHandler {
-	if repo == nil {
-		panic("nil repo")
-	}
-	if server == nil {
-		panic("nil server")
-	}
+func NewAcceptLogEntryHandler() AcceptLogEntryHandler {
+
 	syncLogChannel := make(chan struct{})
-	return AcceptLogEntryHandler{server, repo, onGoingSyncReq, client, syncLogChannel}
+	return AcceptLogEntryHandler{syncLogChannel}
 }
 
 func (h AcceptLogEntryHandler) Handle(ctx context.Context, cmd AcceptLogEntry) (err error) {
@@ -49,8 +40,8 @@ func (h AcceptLogEntryHandler) Handle(ctx context.Context, cmd AcceptLogEntry) (
 		log.Info("Executed command: AcceptLogEntry", cmd, err)
 	}()
 
-	h.server.MakeSureLastEntryDataIsAvailable()
-	entry, persistErr := h.repo.PersistValue(ctx, cmd.Key, cmd.Value, h.server.CurrentTerm)
+	server.Raft.MakeSureLastEntryDataIsAvailable()
+	entry, persistErr := persistence.Repository.PersistValue(ctx, cmd.Key, cmd.Value, server.State.CurrentTerm)
 	if persistErr != nil {
 		return persistErr
 	}
@@ -59,17 +50,17 @@ func (h AcceptLogEntryHandler) Handle(ctx context.Context, cmd AcceptLogEntry) (
 
 	entries := []*raft_rpc.Entry{&pb.Entry{Index: int32(entry.Index), Value: int32(entry.Value), Key: entry.Key, TermNumber: int32(entry.TermNumber)}}
 
-	h.syncRequestService.CancelOngoingRequests()
+	services.SyncRequestService.CancelOngoingRequests()
 
-	for _, otherServer := range h.server.Others {
+	for _, otherServer := range server.Others {
 		go func(leaderId string, previousEntryIndex int, previousEntryTerm int, commitIndex int, otherServer string) {
 			ctx, cancel := context.WithCancel(ctx)
-			h.syncRequestService.AddHandler(otherServer, cancel)
-			appendEntriesRequest := &pb.AppendEntriesRequest{Term: int32(h.server.CurrentTerm), LeaderId: h.server.Id, PreviousLogIndex: int32(previousEntryIndex), PreviousLogTerm: int32(previousEntryTerm), Entries: entries, LeaderCommitIndex: int32(commitIndex)}
+			services.SyncRequestService.AddHandler(otherServer, cancel)
+			appendEntriesRequest := &pb.AppendEntriesRequest{Term: int32(server.State.CurrentTerm), LeaderId: server.Id, PreviousLogIndex: int32(previousEntryIndex), PreviousLogTerm: int32(previousEntryTerm), Entries: entries, LeaderCommitIndex: int32(commitIndex)}
 			appendEntriesLogContext := log.WithFields(log.Fields{"request": appendEntriesRequest, "sendTo": otherServer})
-			client := h.rpcClient.GetClientFor(otherServer)
+			client := client.Client.GetFor(otherServer)
 			appendEntriesLogContext.Info("Sending append entries request")
-			reply, cancelled := retryUntilNoErrorReceived(client, h.syncRequestService, ctx, appendEntriesRequest, otherServer)
+			reply, cancelled := retryUntilNoErrorReceived(client, ctx, appendEntriesRequest, otherServer)
 			if cancelled {
 				appendEntriesLogContext.Info("Append entries request cancelled")
 				return
@@ -77,13 +68,13 @@ func (h AcceptLogEntryHandler) Handle(ctx context.Context, cmd AcceptLogEntry) (
 			for !reply.Success {
 				appendEntriesLogContext.Info("Follower did not accept entry. Syncing log")
 				validatePreviousLogIndex(appendEntriesLogContext, int(appendEntriesRequest.PreviousLogIndex))
-				previousEntry, err := h.repo.GetEntryAtIndex(ctx, int(appendEntriesRequest.PreviousLogIndex))
+				previousEntry, err := persistence.Repository.GetEntryAtIndex(ctx, int(appendEntriesRequest.PreviousLogIndex))
 				if err != nil {
 					appendEntriesLogContext.WithFields(log.Fields{"error": err, "index": appendEntriesRequest.PreviousLogIndex}).Error("Couldn't get entry at index")
 					continue
 				}
 				prepareNextSyncRequest(previousEntry, appendEntriesRequest)
-				reply, cancelled = retryUntilNoErrorReceived(client, h.syncRequestService, ctx, appendEntriesRequest, otherServer)
+				reply, cancelled = retryUntilNoErrorReceived(client, ctx, appendEntriesRequest, otherServer)
 				if cancelled {
 					appendEntriesLogContext.Info("Append entries request cancelled")
 					return
@@ -97,15 +88,15 @@ func (h AcceptLogEntryHandler) Handle(ctx context.Context, cmd AcceptLogEntry) (
 			defer func() {
 				h.syncLogChannel <- struct{}{}
 			}()
-		}(h.server.Id, h.server.PreviousEntryIndex, h.server.PreviousEntryTerm, h.server.CommitIndex, otherServer)
+		}(server.Id, server.State.PreviousEntryIndex, server.State.PreviousEntryTerm, server.State.CommitIndex, otherServer)
 	}
-	for i := 0; i < (len(h.server.Others) / 2); i++ {
+	for i := 0; i < (len(server.Others) / 2); i++ {
 		cmdLogContext.Debug("Waiting for goroutine to finish work. i: ", i)
 		<-h.syncLogChannel
 	}
 
-	h.server.ApplyEntryToState(entry)
-	h.server.SetCommitIndex(entry.Index)
+	server.Raft.ApplyEntryToState(entry)
+	server.Raft.SetCommitIndex(entry.Index)
 	return nil
 }
 
@@ -123,7 +114,7 @@ func validatePreviousLogIndex(logCtx *log.Entry, previousIndex int) {
 	}
 }
 
-func retryUntilNoErrorReceived(client pb.RaftRpcClient, cancelService *services.SyncRequestService, ctx context.Context, appendEntriesRequest *pb.AppendEntriesRequest, serverName string) (*pb.AppendEntriesReply, bool) {
+func retryUntilNoErrorReceived(client pb.RaftRpcClient, ctx context.Context, appendEntriesRequest *pb.AppendEntriesRequest, serverName string) (*pb.AppendEntriesReply, bool) {
 	reply, rpcRequestError := client.AppendEntries(ctx, appendEntriesRequest, grpc.EmptyCallOption{})
 	if rpcRequestError != nil {
 		for rpcRequestError != nil {
@@ -135,13 +126,13 @@ func retryUntilNoErrorReceived(client pb.RaftRpcClient, cancelService *services.
 				log.WithFields(log.Fields{"reply": reply, "error": rpcRequestError}).Info("Retried request")
 			case <-ctx.Done():
 				log.Print("New request arrived, cancelling sync request")
-				cancelService.DeleteHandlerFor(serverName)
+				services.SyncRequestService.DeleteHandlerFor(serverName)
 				return nil, true
 			}
 
 		}
 	}
-	cancelService.DeleteHandlerFor(serverName)
+	services.SyncRequestService.DeleteHandlerFor(serverName)
 	log.Print("Append entries success: ", reply, " Error:", rpcRequestError)
 	return reply, false
 }

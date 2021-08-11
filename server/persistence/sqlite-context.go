@@ -16,8 +16,7 @@ import (
 )
 
 type SqlLiteRepository struct {
-	Context,
-	handle *sql.DB
+	handle        *sql.DB
 	uniqueEntryId string
 }
 
@@ -61,7 +60,7 @@ func (s SqlLiteRepository) PersistValue(ctx context.Context, key string, value i
 		return &entry.Entry{}, err
 	}
 
-	lastInsertedId, err := insertResult.LastInsertId()
+	lastInsertedId, _ := insertResult.LastInsertId()
 	entry, createErr := entry.New(int(lastInsertedId), value, termNumber, key)
 	return entry, createErr
 }

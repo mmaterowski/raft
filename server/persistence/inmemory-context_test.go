@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/mmaterowski/raft/consts"
 	"github.com/mmaterowski/raft/model/entry"
+	"github.com/mmaterowski/raft/utils/consts"
 )
 
 func TestInMemGetEntryAtIndex(t *testing.T) {

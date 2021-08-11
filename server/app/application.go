@@ -14,7 +14,6 @@ import (
 	protoBuff "github.com/mmaterowski/raft/rpc/raft_rpc"
 	rpcServer "github.com/mmaterowski/raft/rpc/server"
 	raft "github.com/mmaterowski/raft/server"
-	"github.com/mmaterowski/raft/services"
 	"github.com/mmaterowski/raft/utils/consts"
 	"github.com/mmaterowski/raft/utils/helpers"
 	log "github.com/sirupsen/logrus"
@@ -29,30 +28,29 @@ func StartApplication() {
 	helpers.PrintAsciiHelloString()
 	env := getEnv()
 	serverId := getServerId(env)
-	config := persistence.GetDbConfig(env)
-	db := persistence.NewDb(config)
-	client := rpcClient.NewClient(serverId)
-	server := &raft.Server{AppRepository: db, RpcClient: *client}
-	server.StartServer(serverId, isLocalEnvironment(env), isIntegrationTesting(env))
+	config := persistence.Database.GetConfig(env)
+	persistence.Database.Init(config)
+	rpcClient.Client.Setup(serverId)
+	raft.Raft.StartServer(serverId, isLocalEnvironment(env), isIntegrationTesting(env))
 
-	go handleRPC(server)
+	go handleRPC()
 
 	if env == consts.Integrationtest {
-		if server.Id == consts.KimId {
-			server.ServerType = server_model.Leader
+		if raft.Id == consts.KimId {
+			raft.Type = server_model.Leader
 		}
 	}
 
 	if env != consts.Integrationtest {
-		server.SetupElection()
+		raft.Raft.SetupElection()
 	}
 
-	server.StartHeartbeat()
+	raft.Raft.StartHeartbeat()
 
 	mapUrls()
-	router.Run("8080")
+	router.Run(":8080")
 
-	api.InitApi(server, client, services.NewSyncRequestService(), getApiPort(env))
+	api.InitApi(getApiPort(env))
 	api.HandleRequests()
 }
 
@@ -95,12 +93,12 @@ func isIntegrationTesting(env string) bool {
 	return env == consts.Integrationtest
 }
 
-func handleRPC(serverReference *raft.Server) {
+func handleRPC() {
 	port := 6960
 	lis, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%d", port))
 	helpers.Check(err)
 	grpcServer := grpc.NewServer()
-	protoBuff.RegisterRaftRpcServer(grpcServer, &rpcServer.Server{Server: *serverReference})
+	protoBuff.RegisterRaftRpcServer(grpcServer, &rpcServer.Server{})
 	err = grpcServer.Serve(lis)
 	helpers.Check(err)
 	log.WithField("port", lis.Addr().String()).Info("RPC started listening")

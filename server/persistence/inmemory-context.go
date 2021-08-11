@@ -8,8 +8,7 @@ import (
 )
 
 type InMemoryContext struct {
-	Context,
-	entries []entry.Entry
+	entries     []entry.Entry
 	currentTerm int
 	votedFor    string
 }
