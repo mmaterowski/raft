@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/mmaterowski/raft/model/entry"
-	server_model "github.com/mmaterowski/raft/model/server"
-	. "github.com/mmaterowski/raft/persistence"
+	model "github.com/mmaterowski/raft/model/server"
+	"github.com/mmaterowski/raft/persistence"
 	rpcClient "github.com/mmaterowski/raft/rpc/client"
 	protoBuff "github.com/mmaterowski/raft/rpc/raft_rpc"
 	"github.com/mmaterowski/raft/utils/consts"
@@ -18,25 +18,45 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-type Server struct {
-	server_model.ServerType
-	State              *map[string]entry.Entry
+var Raft serverInterface = &server{}
+
+var (
+	State            state
+	Type             model.ServerType
+	Id               string
+	mu               sync.Mutex
+	Election         election
+	heartbeatTicker  *time.Ticker
+	triggerHeartbeat chan struct{}
+	Others           []string
+)
+
+type server struct {
+}
+
+type state struct {
+	VotedFor           string
+	Entries            *map[string]entry.Entry
 	CurrentTerm        int
 	PreviousEntryIndex int
 	PreviousEntryTerm  int
 	CommitIndex        int
-	Id                 string
-	VotedFor           string
-	AppRepository
-	mu               sync.Mutex
-	Election         Election
-	HeartbeatTicker  *time.Ticker
-	TriggerHeartbeat chan struct{}
-	RpcClient        rpcClient.Client
-	Others           []string
 }
 
-type Election struct {
+type serverInterface interface {
+	StartServer(id string, isLocalEnv bool, isIntegrationTesting bool)
+	IdentifyServer(local bool)
+	VoteFor(candidateId string) bool
+	RebuildStateFromLog() bool
+	CommitEntries(leaderCommitIndex int) error
+	MakeSureLastEntryDataIsAvailable()
+	SetupElection()
+	StartHeartbeat()
+	ApplyEntryToState(entry *entry.Entry)
+	SetCommitIndex(index int)
+}
+
+type election struct {
 	Ticker      *time.Ticker
 	ResetTicker chan struct{}
 }
@@ -48,22 +68,23 @@ var (
 	commitIndexInfo     = "Leader commitIndex: %d. Server commitIndex: %d"
 )
 
-func (s *Server) StartServer(id string, isLocalEnv bool, isIntegrationTesting bool) {
-	s.Id = id
+func (s *server) StartServer(id string, isLocalEnv bool, isIntegrationTesting bool) {
+	Id = id
+
 	s.IdentifyServer(isLocalEnv)
-	s.ServerType = server_model.ServerType(server_model.Candidate)
+	Type = model.Candidate
 	state := make(map[string]entry.Entry)
-	s.State = &state
-	s.PreviousEntryIndex = consts.NoPreviousEntryValue
-	s.PreviousEntryTerm = consts.TermInitialValue
-	s.CommitIndex = consts.LeaderCommitInitialValue
+	State.Entries = &state
+	State.PreviousEntryIndex = consts.NoPreviousEntryValue
+	State.PreviousEntryTerm = consts.TermInitialValue
+	State.CommitIndex = consts.LeaderCommitInitialValue
 	log.Info(startServerInfo)
 	s.VoteFor("")
-	s.AppRepository.SetCurrentTerm(context.Background(), consts.TermUninitializedValue)
-	s.CurrentTerm, _ = s.AppRepository.GetCurrentTerm(context.Background())
-	s.ServerType = server_model.Follower
-	s.TriggerHeartbeat = make(chan struct{})
-	s.HeartbeatTicker = time.NewTicker(consts.HeartbeatInterval)
+	persistence.Repository.SetCurrentTerm(context.Background(), consts.TermUninitializedValue)
+	State.CurrentTerm, _ = persistence.Repository.GetCurrentTerm(context.Background())
+	Type = model.Follower
+	triggerHeartbeat = make(chan struct{})
+	heartbeatTicker = time.NewTicker(consts.HeartbeatInterval)
 	seed := rand.NewSource(time.Now().UnixNano())
 	electionTimeout := rand.New(seed).Intn(100)*300 + 100
 	log.Infof(electionTimeoutInfo, electionTimeout, consts.HeartbeatInterval)
@@ -71,62 +92,62 @@ func (s *Server) StartServer(id string, isLocalEnv bool, isIntegrationTesting bo
 	if isIntegrationTesting {
 		return
 	}
-	s.Election.Ticker = time.NewTicker(consts.HeartbeatInterval + time.Duration(electionTimeout)*time.Millisecond)
-	s.Election.ResetTicker = make(chan struct{})
+	Election.Ticker = time.NewTicker(consts.HeartbeatInterval + time.Duration(electionTimeout)*time.Millisecond)
+	Election.ResetTicker = make(chan struct{})
 
 }
 
-func (s *Server) IdentifyServer(local bool) {
-	logContext := log.WithFields(log.Fields{"method": helpers.GetFunctionName(s.IdentifyServer), "isLocalEnv": local, "serverId": s.Id})
+func (s *server) IdentifyServer(local bool) {
+	logContext := log.WithFields(log.Fields{"method": helpers.GetFunctionName(s.IdentifyServer), "isLocalEnv": local, "serverId": Id})
 
-	if guard.AgainstEmptyString(s.Id) {
+	if guard.AgainstEmptyString(Id) {
 		logContext.Info("ServerId is empty.")
 	}
 	if local {
-		s.Others = append(s.Others, consts.LaszloId, consts.RickyId)
+		Others = append(Others, consts.LaszloId, consts.RickyId)
 		return
 	}
 
-	switch s.Id {
+	switch Id {
 	case consts.KimId:
-		s.Others = append(s.Others, consts.LaszloId, consts.RickyId)
+		Others = append(Others, consts.LaszloId, consts.RickyId)
 	case consts.RickyId:
-		s.Others = append(s.Others, consts.LaszloId, consts.KimId)
+		Others = append(Others, consts.LaszloId, consts.KimId)
 	case consts.LaszloId:
-		s.Others = append(s.Others, consts.RickyId, consts.KimId)
+		Others = append(Others, consts.RickyId, consts.KimId)
 	default:
 		log.Panic("Couldn't identify Server")
 	}
 }
 
-func (s *Server) VoteFor(candidateId string) bool {
-	err := s.SetVotedFor(context.Background(), candidateId)
+func (s *server) VoteFor(candidateId string) bool {
+	err := persistence.Repository.SetVotedFor(context.Background(), candidateId)
 	if err != nil {
 		log.Print(err)
 		return false
 	}
-	s.VotedFor = candidateId
+	State.VotedFor = candidateId
 	return true
 }
 
-func (s *Server) RebuildStateFromLog() bool {
-	entries, _ := s.AppRepository.GetLog(context.Background())
+func (s *server) RebuildStateFromLog() bool {
+	entries, _ := persistence.Repository.GetLog(context.Background())
 	for _, entry := range *entries {
-		(*s.State)[entry.Key] = entry
-		s.CommitIndex = entry.Index
+		(*State.Entries)[entry.Key] = entry
+		State.CommitIndex = entry.Index
 	}
 	log.Infof(logRebuiltInfo, helpers.PrettyPrint(entries))
 	return true
 }
 
-func (s *Server) CommitEntries(leaderCommitIndex int) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	for leaderCommitIndex != s.CommitIndex {
+func (s *server) CommitEntries(leaderCommitIndex int) error {
+	mu.Lock()
+	defer mu.Unlock()
+	for leaderCommitIndex != State.CommitIndex {
 		//TODO Optimize:Get all entries at once
-		log.Infof(commitIndexInfo, leaderCommitIndex, s.CommitIndex)
-		nextEntryIndexToCommit := s.CommitIndex + 1
-		entry, err := s.AppRepository.GetEntryAtIndex(context.Background(), nextEntryIndexToCommit)
+		log.Infof(commitIndexInfo, leaderCommitIndex, State.CommitIndex)
+		nextEntryIndexToCommit := State.CommitIndex + 1
+		entry, err := persistence.Repository.GetEntryAtIndex(context.Background(), nextEntryIndexToCommit)
 		if err != nil {
 			log.Println("Error while commiting entry to state.")
 			if err == sql.ErrNoRows {
@@ -134,15 +155,15 @@ func (s *Server) CommitEntries(leaderCommitIndex int) error {
 				break
 			}
 			log.Println(err)
-			if s.ServerType == server_model.Leader {
-				s.ServerType = server_model.Follower
+			if Type == model.Leader {
+				Type = model.Follower
 				log.Printf("Server state set Leader->Follower")
 			}
 			break
 		} else {
 			log.Print("Commiting new entry to state. Key: ", entry.Key, " Entry: ", entry)
-			(*s.State)[entry.Key] = *entry
-			s.CommitIndex++
+			(*State.Entries)[entry.Key] = *entry
+			State.CommitIndex++
 
 		}
 
@@ -150,44 +171,44 @@ func (s *Server) CommitEntries(leaderCommitIndex int) error {
 	return nil
 }
 
-func (server *Server) MakeSureLastEntryDataIsAvailable() {
-	entry, _ := server.AppRepository.GetLastEntry(context.Background())
+func (server *server) MakeSureLastEntryDataIsAvailable() {
+	entry, _ := persistence.Repository.GetLastEntry(context.Background())
 	if !entry.IsEmpty() {
-		server.PreviousEntryIndex = entry.Index
-		server.PreviousEntryTerm = entry.TermNumber
+		State.PreviousEntryIndex = entry.Index
+		State.PreviousEntryTerm = entry.TermNumber
 		return
 	}
-	server.PreviousEntryIndex = consts.NoPreviousEntryValue
-	server.PreviousEntryTerm = consts.TermInitialValue
+	State.PreviousEntryIndex = consts.NoPreviousEntryValue
+	State.PreviousEntryTerm = consts.TermInitialValue
 }
 
-func (server *Server) SetupElection() {
+func (server *server) SetupElection() {
 	go func() {
 		for {
 			select {
-			case <-server.Election.Ticker.C:
+			case <-Election.Ticker.C:
 				log.Info("Ticker timeout: Start election...")
-				server.CurrentTerm++
-				success := server.VoteFor(server.Id)
+				State.CurrentTerm++
+				success := server.VoteFor(Id)
 				if !success {
 					log.Info("Something bad happened, couldn't vote for itself")
 				}
 
 				log.WithFields(log.Fields{
-					"electionIssuer":   server.Id,
-					"incrementsTermTo": server.CurrentTerm,
+					"electionIssuer":   Id,
+					"incrementsTermTo": State.CurrentTerm,
 				}).Info("Election started")
 
-				server.mu.Lock()
-				server.ServerType = server_model.Candidate
-				server.HeartbeatTicker.Stop()
-				server.mu.Unlock()
+				mu.Lock()
+				Type = model.Candidate
+				heartbeatTicker.Stop()
+				mu.Unlock()
 
-				for _, otherServer := range server.Others {
+				for _, otherServer := range Others {
 					go func(serverId string) {
-						request := protoBuff.RequestVoteRequest{Term: int32(server.CurrentTerm), CandidateID: server.Id, LastLogIndex: int32(server.PreviousEntryIndex), LastLogTerm: int32(server.PreviousEntryTerm)}
-						reply, err := server.RpcClient.GetClientFor(serverId).RequestVote(context.Background(), &request)
-						rpcLogContext := log.WithFields(log.Fields{"request": &request, "reply": reply, "error": err, "currentTerm": server.CurrentTerm, "serverType": server.ServerType})
+						request := protoBuff.RequestVoteRequest{Term: int32(State.CurrentTerm), CandidateID: Id, LastLogIndex: int32(State.PreviousEntryIndex), LastLogTerm: int32(State.PreviousEntryTerm)}
+						reply, err := rpcClient.Client.GetFor(serverId).RequestVote(context.Background(), &request)
+						rpcLogContext := log.WithFields(log.Fields{"request": &request, "reply": reply, "error": err, "currentTerm": State.CurrentTerm, "serverType": Type})
 						if err != nil {
 							rpcLogContext.Error("Request vote error")
 						}
@@ -196,54 +217,54 @@ func (server *Server) SetupElection() {
 							return
 						}
 
-						if reply.Term > int32(server.CurrentTerm) {
+						if reply.Term > int32(State.CurrentTerm) {
 							log.WithField("NewCurrentTermValue", reply.Term).Info("Response term higher than candidate's. Changing current term")
-							server.CurrentTerm = int(reply.Term)
-							server.SetCurrentTerm(context.Background(), int(reply.Term))
+							State.CurrentTerm = int(reply.Term)
+							persistence.Repository.SetCurrentTerm(context.Background(), int(reply.Term))
 						}
 
 						rpcLogContext.Info("Reply received")
-						if reply.VoteGranted && reply.Term <= int32(server.CurrentTerm) && server.ServerType != server_model.Leader {
-							log.WithField("Leader", server.Id).Info("Becoming a leader")
-							server.ServerType = server_model.Leader
-							server.HeartbeatTicker = time.NewTicker(consts.HeartbeatInterval)
-							server.TriggerHeartbeat <- struct{}{}
-							server.Election.ResetTicker <- struct{}{}
+						if reply.VoteGranted && reply.Term <= int32(State.CurrentTerm) && Type != model.Leader {
+							log.WithField("Leader", Id).Info("Becoming a leader")
+							Type = model.Leader
+							heartbeatTicker = time.NewTicker(consts.HeartbeatInterval)
+							triggerHeartbeat <- struct{}{}
+							Election.ResetTicker <- struct{}{}
 						}
 					}(otherServer)
 				}
-			case <-server.Election.ResetTicker:
+			case <-Election.ResetTicker:
 				seed := rand.NewSource(time.Now().UnixNano())
 				electionTimeout := rand.New(seed).Intn(100)*300 + 100
 				log.WithField("elecitonTimeout", electionTimeout+int(consts.HeartbeatInterval)).Info("Resetting election ticker")
-				server.Election.Ticker.Reset(consts.HeartbeatInterval + time.Duration(electionTimeout)*time.Millisecond)
+				Election.Ticker.Reset(consts.HeartbeatInterval + time.Duration(electionTimeout)*time.Millisecond)
 			}
 		}
 	}()
 }
 
-func (server *Server) StartHeartbeat() {
-	if server.Id != consts.KimId {
+func (server *server) StartHeartbeat() {
+	if Id != consts.KimId {
 		log.Info("Election not implemented fully, heartbeating only for Kim")
 		return
 	}
-	server.HeartbeatTicker.Stop()
+	heartbeatTicker.Stop()
 	//not heartbeating with integration tests for kim, channel conflicts!
 	go func() {
 		for {
 			select {
-			case <-server.HeartbeatTicker.C:
-				if server.Election.ResetTicker != nil {
-					server.Election.ResetTicker <- struct{}{}
+			case <-heartbeatTicker.C:
+				if Election.ResetTicker != nil {
+					Election.ResetTicker <- struct{}{}
 				}
-				for _, otherServer := range server.Others {
+				for _, otherServer := range Others {
 					go func(commitIndex int, term int, id string, otherServer string) {
 						request := protoBuff.AppendEntriesRequest{LeaderCommitIndex: int32(commitIndex), Term: int32(term), LeaderId: id}
 						log.WithField("Request", &request).Info("Sending hearbeat")
-						server.RpcClient.GetClientFor(otherServer).AppendEntries(context.Background(), &request)
-					}(server.CommitIndex, server.CurrentTerm, server.Id, otherServer)
+						rpcClient.Client.GetFor(otherServer).AppendEntries(context.Background(), &request)
+					}(State.CommitIndex, State.CurrentTerm, Id, otherServer)
 				}
-			case <-server.TriggerHeartbeat:
+			case <-triggerHeartbeat:
 				log.WithField("interval", consts.HeartbeatInterval).Info("Heartbeat was resetted, expect next heargbeat after set interval")
 				//just to recalculate select values
 			}
@@ -251,20 +272,20 @@ func (server *Server) StartHeartbeat() {
 	}()
 }
 
-func (server *Server) ApplyEntryToState(entry *entry.Entry) {
+func (server *server) ApplyEntryToState(entry *entry.Entry) {
 	if entry.IsEmpty() {
 		log.Warn("Tried to apply empty entry to state.")
 		return
 	}
 
-	(*server.State)[entry.Key] = *entry
+	(*State.Entries)[entry.Key] = *entry
 }
 
-func (server *Server) SetCommitIndex(index int) {
+func (server *server) SetCommitIndex(index int) {
 	if guard.AgainstNegativeValue(index) {
 		log.Warn("Tried to set commit index to negative value")
 	}
 
-	server.CommitIndex = index
+	State.CommitIndex = index
 
 }
