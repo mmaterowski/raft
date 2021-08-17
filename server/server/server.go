@@ -54,6 +54,7 @@ type serverInterface interface {
 	StartHeartbeat()
 	ApplyEntryToState(entry *entry.Entry)
 	SetCommitIndex(index int)
+	BecomeFollower()
 }
 
 type election struct {
@@ -86,7 +87,7 @@ func (s *server) StartServer(id string, isLocalEnv bool, isIntegrationTesting bo
 	triggerHeartbeat = make(chan struct{})
 	heartbeatTicker = time.NewTicker(consts.HeartbeatInterval)
 	seed := rand.NewSource(time.Now().UnixNano())
-	electionTimeout := rand.New(seed).Intn(100) * 20
+	electionTimeout := rand.New(seed).Intn(100)*3 + 3000
 	log.Infof(electionTimeoutInfo, electionTimeout, consts.HeartbeatInterval)
 
 	Election.Ticker = time.NewTicker(consts.HeartbeatInterval + time.Duration(electionTimeout)*time.Millisecond)
@@ -222,13 +223,14 @@ func (server *server) SetupElection() {
 							return
 						}
 
+						rpcLogContext.Info("Reply received")
+
 						if reply.Term > int32(State.CurrentTerm) {
 							log.WithField("NewCurrentTermValue", reply.Term).Info("Response term higher than candidate's. Changing current term")
 							State.CurrentTerm = int(reply.Term)
 							persistence.Repository.SetCurrentTerm(context.Background(), int(reply.Term))
 						}
 
-						rpcLogContext.Info("Reply received")
 						if reply.VoteGranted && reply.Term <= int32(State.CurrentTerm) && Type != model.Leader {
 							log.WithField("Leader", Id).Info("Becoming a leader")
 							Type = model.Leader
@@ -271,6 +273,11 @@ func (server *server) StartHeartbeat() {
 			}
 		}
 	}()
+}
+
+func (server *server) BecomeFollower() {
+	heartbeatTicker.Stop()
+	Type = model.Follower
 }
 
 func (server *server) ApplyEntryToState(entry *entry.Entry) {

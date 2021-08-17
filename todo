@@ -1,14 +1,20 @@
+Test client:
+    ☐ Should be able to put to each server
+    ☐ Server should communicate change of leader
+    ☐ Server should communicate change to state - display or 3 states and logs
+    ☐ Stress test: lots of requests in parallel
+
 Leader election:
     ✔ After persistence is working properly plan out election - read paper to the end @today @done(21-08-03 07:05)
     ✔ Start as a follower @done(21-08-03 08:10)
-    ☐ Scenario 1: win election
+    ✔ Scenario 1: win election @done(21-08-17 09:24)
         ✔ Election won by single server @done(21-08-03 09:48)
         ✔ Simplify channels, resolve dependencies client / server / etc @done(21-08-16 07:08)
-        ☐ Commit entries from log when election won
-    ☐ Scenario 2: another server wins election
-        ☐ Return to follower when heartbeat with higher term received
+        ✔ Commit entries from log when election won @done(21-08-17 08:50)
+    ✔ Scenario 2: another server wins election @done(21-08-17 09:24)
+        ✔ Return to follower when heartbeat with higher term received @done(21-08-17 09:24)
     ☐ Scenario 3: nobody wins election
-    ☐ Persist VotedFor
+    ✔ Persist VotedFor @done(21-08-17 09:24)
 
 Infrastracture: 
     ☐ Replace API with gin-tonic

@@ -5,6 +5,7 @@ import (
 	"log"
 
 	"github.com/mmaterowski/raft/model/entry"
+	"github.com/mmaterowski/raft/model/server"
 	"github.com/mmaterowski/raft/persistence"
 	"github.com/mmaterowski/raft/rpc/raft_rpc"
 	raftServer "github.com/mmaterowski/raft/server"
@@ -33,7 +34,7 @@ func (s *Server) RequestVote(ctx context.Context, in *raft_rpc.RequestVoteReques
 	}
 
 	log.Print("Voted for: ", raftServer.State.VotedFor, " Server previous entry index: ", raftServer.State.PreviousEntryIndex, " previous entry term: ", raftServer.State.PreviousEntryTerm)
-	if raftServer.State.VotedFor == "" && in.LastLogIndex == int32(raftServer.State.PreviousEntryIndex) && in.LastLogTerm == int32(raftServer.State.PreviousEntryTerm) {
+	if raftServer.State.VotedFor == "" || (in.LastLogIndex == int32(raftServer.State.PreviousEntryIndex) && in.LastLogTerm == int32(raftServer.State.PreviousEntryTerm)) {
 		log.Printf("Gonna grant a vote for: %s", in.CandidateID)
 		reply.VoteGranted = true
 		raftServer.Raft.VoteFor(in.CandidateID)
@@ -45,8 +46,8 @@ func (s *Server) RequestVote(ctx context.Context, in *raft_rpc.RequestVoteReques
 
 func (s *Server) AppendEntries(ctx context.Context, in *raft_rpc.AppendEntriesRequest) (*raft_rpc.AppendEntriesReply, error) {
 	log.Print("________AppendEntriesRPC___________")
-	log.Print("Resetting election timer")
 	if raftServer.Election.ResetTicker != nil {
+		log.Print("Resetting election timer")
 		raftServer.Election.ResetTicker <- struct{}{}
 	}
 
@@ -54,6 +55,9 @@ func (s *Server) AppendEntries(ctx context.Context, in *raft_rpc.AppendEntriesRe
 	successReply := &raft_rpc.AppendEntriesReply{Success: true, Term: term}
 	failReply := &raft_rpc.AppendEntriesReply{Success: false, Term: term}
 
+	if in.Term >= int32(raftServer.State.CurrentTerm) && raftServer.Type == server.Leader {
+		raftServer.Raft.BecomeFollower()
+	}
 	if in.Term < int32(raftServer.State.CurrentTerm) {
 		return failReply, nil
 	}
