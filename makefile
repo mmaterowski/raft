@@ -1,6 +1,18 @@
-hello:
-	echo "Hello"
+build:
+	go build -mod=vendor
 
 test:
-	docker-compose -f docker-compose.test.yaml up --build --abort-on-container-exit
-	docker-compose -f docker-compose.test.yaml down --volumes
+	go test -race ./...
+
+cover:
+	go test -coverprofile=c.out -covermode=atomic -race ./...
+	cp c.out coverage.txt
+
+lint:
+	/bin/bash -c "golangci-lint --version | grep -q 1.15.0 || curl -sfL https://install.goreleaser.com/github.com/golangci/golangci-lint.sh | sh -s -- -b $(GOPATH)/bin v1.15.0"
+	golangci-lint run --enable-all
+
+update:
+	go get -u ./...
+	go mod tidy
+	go mod vendor -v

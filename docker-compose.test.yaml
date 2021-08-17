@@ -4,11 +4,13 @@ services:
         build: ./server
         ports:
             - "6969:6969"
+            - "6979:6979"
         expose: 
             - "6960"
         environment:
             - SERVER_ID=Kim
             - SERVER_PORT=6969
+            - SERVER_SIGNALR_PORT=6979
             - ENV=IntegrationTest
         volumes:
             - ./db/kim:/data/raft-db    
@@ -16,11 +18,13 @@ services:
         build: ./server
         ports:
             - "6970:6970"
+            - "6980:6980"
         expose: 
             - "6960"
         environment:
             - SERVER_ID=Ricky
             - SERVER_PORT=6970
+            - SERVER_SIGNALR_PORT=6980
             - ENV=IntegrationTest
         volumes:
             - ./db/ricky:/data/raft-db       
@@ -28,11 +32,13 @@ services:
         build: ./server
         ports:
             - "6971:6971"
+            - "6981:6981"
         expose: 
             - "6960"
         environment:
             - SERVER_ID=Laszlo
             - SERVER_PORT=6971
+            - SERVER_SIGNALR_PORT=6981
             - ENV=IntegrationTest
         volumes:
             - ./db/laszlo:/data/raft-db    

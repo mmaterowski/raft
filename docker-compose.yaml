@@ -9,6 +9,7 @@ services:
         environment:
             - SERVER_ID=Kim
             - SERVER_PORT=6969
+            - SERVER_SIGNALR_PORT=6979
             - ENV=Debug
         volumes:
             - ./db/kim:/data/raft-db    
@@ -21,6 +22,7 @@ services:
         environment:
             - SERVER_ID=Ricky
             - SERVER_PORT=6970
+            - SERVER_SIGNALR_PORT=6980
             - ENV=Debug
         volumes:
             - ./db/ricky:/data/raft-db       
@@ -33,6 +35,7 @@ services:
         environment:
             - SERVER_ID=Laszlo
             - SERVER_PORT=6971
+            - SERVER_SIGNALR_PORT=6981
             - ENV=Debug
         volumes:
             - ./db/laszlo:/data/raft-db    

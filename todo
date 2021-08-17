@@ -3,12 +3,16 @@ Leader election:
     ✔ Start as a follower @done(21-08-03 08:10)
     ☐ Scenario 1: win election
         ✔ Election won by single server @done(21-08-03 09:48)
-        ☐ Simplify channels, resolve dependencies client / server / etc
+        ✔ Simplify channels, resolve dependencies client / server / etc @done(21-08-16 07:08)
         ☐ Commit entries from log when election won
     ☐ Scenario 2: another server wins election
         ☐ Return to follower when heartbeat with higher term received
     ☐ Scenario 3: nobody wins election
     ☐ Persist VotedFor
+
+Infrastracture: 
+    ☐ Replace API with gin-tonic
+    ☐ Endpoints use commands
 
 ✔ Log replication: @done(21-08-02 10:16)
     ✔ Handle multiple entries append @done(21-07-23 07:11)

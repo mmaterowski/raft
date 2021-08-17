@@ -9,18 +9,28 @@ const (
 	LocalWithPersistence = "LocalWithPersistence"
 )
 
-var TermInitialValue = 1
-var TermUninitializedValue = 0
-var NoPreviousEntryValue = 0
-var LeaderCommitInitialValue = 0
-var FirstEntryIndex = 1
+const (
+	TermInitialValue         = 1
+	TermUninitializedValue   = 0
+	NoPreviousEntryValue     = 0
+	LeaderCommitInitialValue = 0
+	FirstEntryIndex          = 1
+	HeartbeatInterval        = 3 * time.Second
+)
 
-var HeartbeatInterval = 3 * time.Second
-var RickyPort = 6970
-var KimPort = 6969
-var RickyServiceName = "ricky"
-var KimServiceName = "kim"
-var LaszloServiceName = "laszlo"
-var KimId = "Kim"
-var LaszloId = "Laszlo"
-var RickyId = "Ricky"
+const (
+	LocalSignalRPort  = KimSignalRPort
+	LocalApiPort      = KimPort
+	RickyPort         = 6971
+	RickySignalRPort  = 6981
+	LaszloPort        = 6970
+	LaszloSignalRPort = 6980
+	KimPort           = 6969
+	KimSignalRPort    = 6979
+	RickyServiceName  = "ricky"
+	KimServiceName    = "kim"
+	LaszloServiceName = "laszlo"
+	KimId             = "Kim"
+	LaszloId          = "Laszlo"
+	RickyId           = "Ricky"
+)

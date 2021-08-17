@@ -86,15 +86,11 @@ func (s *server) StartServer(id string, isLocalEnv bool, isIntegrationTesting bo
 	triggerHeartbeat = make(chan struct{})
 	heartbeatTicker = time.NewTicker(consts.HeartbeatInterval)
 	seed := rand.NewSource(time.Now().UnixNano())
-	electionTimeout := rand.New(seed).Intn(100)*300 + 100
+	electionTimeout := rand.New(seed).Intn(100) * 20
 	log.Infof(electionTimeoutInfo, electionTimeout, consts.HeartbeatInterval)
 
-	if isIntegrationTesting {
-		return
-	}
 	Election.Ticker = time.NewTicker(consts.HeartbeatInterval + time.Duration(electionTimeout)*time.Millisecond)
 	Election.ResetTicker = make(chan struct{})
-
 }
 
 func (s *server) IdentifyServer(local bool) {
@@ -131,11 +127,19 @@ func (s *server) VoteFor(candidateId string) bool {
 }
 
 func (s *server) RebuildStateFromLog() bool {
+	if Type != model.Leader {
+		return false
+	}
+
+	State.CommitIndex = consts.LeaderCommitInitialValue
+	State.Entries = &map[string]entry.Entry{}
+
 	entries, _ := persistence.Repository.GetLog(context.Background())
 	for _, entry := range *entries {
 		(*State.Entries)[entry.Key] = entry
 		State.CommitIndex = entry.Index
 	}
+	// raft_signalr.AppHub.SendServerTypeChanged(Id, Type)
 	log.Infof(logRebuiltInfo, helpers.PrettyPrint(entries))
 	return true
 }
@@ -212,6 +216,7 @@ func (server *server) SetupElection() {
 						if err != nil {
 							rpcLogContext.Error("Request vote error")
 						}
+
 						if reply == nil {
 							rpcLogContext.Warn("No errors but nil reply, something werid happened")
 							return
@@ -227,7 +232,7 @@ func (server *server) SetupElection() {
 						if reply.VoteGranted && reply.Term <= int32(State.CurrentTerm) && Type != model.Leader {
 							log.WithField("Leader", Id).Info("Becoming a leader")
 							Type = model.Leader
-							heartbeatTicker = time.NewTicker(consts.HeartbeatInterval)
+							server.RebuildStateFromLog()
 							triggerHeartbeat <- struct{}{}
 							Election.ResetTicker <- struct{}{}
 						}
@@ -235,7 +240,7 @@ func (server *server) SetupElection() {
 				}
 			case <-Election.ResetTicker:
 				seed := rand.NewSource(time.Now().UnixNano())
-				electionTimeout := rand.New(seed).Intn(100)*300 + 100
+				electionTimeout := rand.New(seed).Intn(100) * 20
 				log.WithField("elecitonTimeout", electionTimeout+int(consts.HeartbeatInterval)).Info("Resetting election ticker")
 				Election.Ticker.Reset(consts.HeartbeatInterval + time.Duration(electionTimeout)*time.Millisecond)
 			}
@@ -244,12 +249,7 @@ func (server *server) SetupElection() {
 }
 
 func (server *server) StartHeartbeat() {
-	if Id != consts.KimId {
-		log.Info("Election not implemented fully, heartbeating only for Kim")
-		return
-	}
 	heartbeatTicker.Stop()
-	//not heartbeating with integration tests for kim, channel conflicts!
 	go func() {
 		for {
 			select {
@@ -265,7 +265,8 @@ func (server *server) StartHeartbeat() {
 					}(State.CommitIndex, State.CurrentTerm, Id, otherServer)
 				}
 			case <-triggerHeartbeat:
-				log.WithField("interval", consts.HeartbeatInterval).Info("Heartbeat was resetted, expect next heargbeat after set interval")
+				heartbeatTicker.Reset(consts.HeartbeatInterval)
+				log.WithField("interval", consts.HeartbeatInterval).Info("Heartbeat was resetted, expect next heartbeat after set interval")
 				//just to recalculate select values
 			}
 		}

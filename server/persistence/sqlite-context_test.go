@@ -196,8 +196,16 @@ func TestSqlLiteSettingVotedFor(t *testing.T) {
 	config := DbConfig{Path: "./unit_test.db", InMemory: false}
 	Database.Init(config)
 
-	Repository.SetVotedFor(ctx, "kim")
-	votedFor, _ := Repository.GetVotedFor(ctx)
+	err := Repository.SetVotedFor(ctx, "kim")
+	if err != nil {
+		t.Error("Got error from DB", err)
+	}
+	votedFor, err := Repository.GetVotedFor(ctx)
+
+	if err != nil {
+		t.Error("Got error from DB", err)
+	}
+
 	if votedFor != "kim" {
 		t.Error("Got invalid voted for value")
 	}

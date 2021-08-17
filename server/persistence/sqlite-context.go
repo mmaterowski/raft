@@ -92,6 +92,7 @@ func (s SqlLiteRepository) PersistValues(ctx context.Context, entries []entry.En
 	}
 	insert = strings.TrimSuffix(insert, ",")
 	statement, _ := s.handle.Prepare(insert)
+	defer statement.Close()
 	insertResult, err := statement.Exec()
 
 	if err != nil {
@@ -152,6 +153,7 @@ func (db SqlLiteRepository) SetCurrentTerm(ctx context.Context, currentTerm int)
 	}
 
 	statement, _ := db.handle.Prepare(updateCurrentTermSql)
+	defer statement.Close()
 	sqlRes, err := statement.Exec(currentTerm, db.uniqueEntryId)
 	if err != nil {
 		return err
@@ -178,16 +180,17 @@ func (db SqlLiteRepository) GetVotedFor(ctx context.Context) (string, error) {
 
 func (db SqlLiteRepository) SetVotedFor(ctx context.Context, votedForId string) error {
 	statement, _ := db.handle.Prepare(updateVotedForSql)
+	defer statement.Close()
 	sqlRes, err := statement.Exec(votedForId, db.uniqueEntryId)
 	if err != nil {
 		return err
 	}
 
 	if atLeastOneRowWasUpdated(sqlRes) {
-		return errNoRowsUpdated
+		return nil
 	}
+	return errNoRowsUpdated
 
-	return nil
 }
 
 func (db SqlLiteRepository) GetLog(ctx context.Context) (*[]entry.Entry, error) {
@@ -235,6 +238,7 @@ func (db SqlLiteRepository) DeleteAllEntriesStartingFrom(ctx context.Context, in
 		return err
 	}
 	statement, _ := tx.Prepare(deleteEntriesStartingFromSql)
+	defer statement.Close()
 	_, deleteErr := statement.Exec(index)
 	if deleteErr != nil {
 		return deleteErr

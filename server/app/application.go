@@ -4,16 +4,16 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strconv"
 
 	nested "github.com/antonfisher/nested-logrus-formatter"
 	"github.com/gin-gonic/gin"
 	api "github.com/mmaterowski/raft/api"
-	server_model "github.com/mmaterowski/raft/model/server"
 	"github.com/mmaterowski/raft/persistence"
 	rpcClient "github.com/mmaterowski/raft/rpc/client"
 	protoBuff "github.com/mmaterowski/raft/rpc/raft_rpc"
 	rpcServer "github.com/mmaterowski/raft/rpc/server"
-	raft "github.com/mmaterowski/raft/server"
+	raftServer "github.com/mmaterowski/raft/server"
 	"github.com/mmaterowski/raft/utils/consts"
 	"github.com/mmaterowski/raft/utils/helpers"
 	log "github.com/sirupsen/logrus"
@@ -31,33 +31,64 @@ func StartApplication() {
 	config := persistence.Database.GetStandardConfig(env)
 	persistence.Database.Init(config)
 	rpcClient.Client.Setup(serverId)
-	raft.Raft.StartServer(serverId, isLocalEnvironment(env), isIntegrationTesting(env))
+	raftServer.Raft.StartServer(serverId, isLocalEnvironment(env), isIntegrationTesting(env))
 
 	go handleRPC()
+	// go handleSignalR(getSignalRPort(env))
 
-	if env == consts.Integrationtest {
-		if raft.Id == consts.KimId {
-			raft.Type = server_model.Leader
-		}
-	}
+	// if env == consts.Integrationtest {
+	// 	if raftServer.Id == consts.KimId {
+	// 		raftServer.Type = server_model.Leader
+	// 	}
+	// }
 
-	if env != consts.Integrationtest {
-		raft.Raft.SetupElection()
-	}
+	// if env != consts.Integrationtest {
+	// 	raftServer.Raft.SetupElection()
+	// }
+	raftServer.Raft.SetupElection()
 
-	raft.Raft.StartHeartbeat()
+	// _____________________________________START HERE________________________________________
+	//HEARTBEAT NOT SENT
+	//=INFINITE ELECTION
+	raftServer.Raft.StartHeartbeat()
 
-	mapUrls()
-	router.Run(":8080")
+	// mapUrls()
+	// router.Run(":8080")
 
 	api.InitApi(getApiPort(env))
 	api.HandleRequests()
 }
 
+// func handleSignalR(port string) {
+
+// 	address := ":" + port
+// 	hub := raft_signalr.AppHub
+
+// 	server, _ := signalr.NewServer(context.TODO(),
+// 		signalr.SimpleHubFactory(&hub.Hub),
+// 		signalr.KeepAliveInterval(2*time.Second))
+
+// 	router := http.NewServeMux()
+// 	server.MapHTTP(router, "/signalr")
+// 	log.WithField("port", address).Info("Listening for websocket connections.")
+// 	if err := http.ListenAndServe(address, router); err != nil {
+// 		log.WithField("Error", err).Fatal("SignalR ListenAndServe failed")
+// 	}
+
+// }
+
 func getApiPort(env string) string {
 	port := os.Getenv("SERVER_PORT")
 	if isLocalEnvironment(env) {
-		port = "6969"
+		port = strconv.Itoa(consts.LocalApiPort)
+	}
+	return port
+}
+
+func getSignalRPort(env string) string {
+	port := os.Getenv("SERVER_SIGNALR_PORT")
+	if isLocalEnvironment(env) {
+		port = strconv.Itoa(consts.LocalSignalRPort)
 	}
 	return port
 }

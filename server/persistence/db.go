@@ -48,7 +48,6 @@ func (db *db) GetStandardConfig(env string) DbConfig {
 	if env == consts.LocalWithPersistence {
 		config.Path = "./log.db"
 	} else {
-
 		config.Path = "../data/raft-db/log.db"
 	}
 	return config
