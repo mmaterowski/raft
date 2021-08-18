@@ -1,0 +1,17 @@
+<svg:g *ngIf="circle">
+  <circle
+    [attr.cx]="circle.x"
+    [attr.cy]="circle.y"
+    [attr.r]="circle.r"
+    [attr.fill]="circle.color"
+  ></circle>
+  <text
+    [attr.x]="circle.x"
+    [attr.y]="circle.y"
+    text-anchor="middle"
+    alignment-baseline="middle"
+    font-size="0.3em"
+  >
+    {{ circle.text }}
+  </text>
+</svg:g>
