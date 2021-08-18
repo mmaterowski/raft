@@ -1,5 +1,7 @@
 import { Component, ElementRef, OnInit, ViewChild } from '@angular/core';
 import * as d3 from '../custom-d3';
+import { Line } from '../model/line';
+import { Point } from '../model/point';
 import { Circle } from './circle';
 
 @Component({
@@ -13,6 +15,9 @@ export class ServersComponent implements OnInit {
   @ViewChild('canvasViewBox', { static: true })
   canvasViewBox: ElementRef | undefined;
   public ricky: Circle | undefined;
+  public rickyToLaszloHeart: Line | undefined;
+  public rickyToKimHeart: Line | undefined;
+  public kimToLaszloHeart: Line | undefined;
   public laszlo: Circle | undefined;
   public kim: Circle | undefined;
 
@@ -23,6 +28,21 @@ export class ServersComponent implements OnInit {
     this.ricky = new Circle(300, 200, 20, 'chartreuse', 'Ricky');
     this.kim = new Circle(200, 100, 20, 'chartreuse', 'Kim');
     this.laszlo = new Circle(400, 100, 20, 'chartreuse', 'Laszlo');
+
+    this.rickyToLaszloHeart = new Line(
+      { X: this.ricky.x, Y: this.ricky.y },
+      { X: this.laszlo.x, Y: this.laszlo.y }
+    );
+
+    this.rickyToKimHeart = new Line(
+      { X: this.ricky.x, Y: this.ricky.y },
+      { X: this.kim.x, Y: this.kim.y }
+    );
+
+    this.kimToLaszloHeart = new Line(
+      { X: this.kim.x, Y: this.kim.y },
+      { X: this.laszlo.x, Y: this.laszlo.y }
+    );
   }
 
   private setupPanAndZoom() {
