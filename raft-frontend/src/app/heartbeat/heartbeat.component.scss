@@ -1,0 +1,10 @@
+@keyframes colorChange {
+  0%{stroke:chartreuse; stroke-dashoffset: 2000}
+  50%{stroke:lightseagreen;width: 50%; stroke-dashoffset: 1500;}
+  100%{stroke:chartreuse;width: 100%; stroke-dashoffset:500}
+}
+.gradient {
+  animation: colorChange 3s infinite;
+  stroke-dasharray: 1000;
+  stroke-dashoffset: 1000;
+}
