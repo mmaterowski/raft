@@ -1,8 +1,8 @@
 <p>servers works!</p>
 <svg:svg #canvasContainer viewBox="0 0 600 300" class="canvas">
   <g #canvasViewBox>
-    <g app-heartbeat [line]="rickyToLaszloHeart"></g>
-    <g app-heartbeat [line]="rickyToKimHeart"></g>
+    <g app-heartbeat [line]="rickyToLaszloHeart" [receivesHearbeat]="true"></g>
+    <g app-heartbeat [line]="rickyToKimHeart" [receivesHearbeat]="true"></g>
     <g app-heartbeat [line]="kimToLaszloHeart"></g>
     <g app-server [circle]="ricky"></g>
     <g app-server [circle]="kim"></g>

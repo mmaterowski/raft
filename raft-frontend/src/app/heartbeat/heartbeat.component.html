@@ -1,5 +1,6 @@
 <svg:line
-  class="gradient"
+  [class.heartbeat]="receivesHearbeat"
+  [class.no-heartbeat]="!receivesHearbeat"
   *ngIf="line"
   [attr.x1]="line.start.X"
   [attr.y1]="line.start.Y"

@@ -1,10 +1,24 @@
-@keyframes colorChange {
-  0%{stroke:chartreuse; stroke-dashoffset: 2000}
-  50%{stroke:lightseagreen;width: 50%; stroke-dashoffset: 1500;}
-  100%{stroke:chartreuse;width: 100%; stroke-dashoffset:500}
+@keyframes heartbeat {
+  0%{stroke:chartreuse; stroke-dashoffset: 400}
+  50%{stroke:lightseagreen;width: 50%; stroke-dashoffset: 200;}
+  100%{stroke:chartreuse;width: 100%; stroke-dashoffset:0}
 }
-.gradient {
-  animation: colorChange 3s infinite;
-  stroke-dasharray: 1000;
+
+@keyframes noHeartbeat {
+  0%{stroke:lightcoral; stroke-dashoffset: 200}
+  50%{stroke:red;width: 50%; stroke-dashoffset: 100;}
+  100%{stroke:lightcoral;width: 100%; stroke-dashoffset:200}
+}
+
+.heartbeat {
+  animation: heartbeat 3s infinite;
+  stroke-dasharray: 200;
   stroke-dashoffset: 1000;
 }
+
+.no-heartbeat {
+  animation: noHeartbeat 3s infinite;
+  stroke-dasharray: 200;
+  stroke-dashoffset: 1000;
+}
+

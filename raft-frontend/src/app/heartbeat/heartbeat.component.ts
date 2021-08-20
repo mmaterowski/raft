@@ -13,10 +13,13 @@ export class HeartbeatComponent implements OnInit {
   constructor() {}
   @Input()
   public line: Line | undefined;
+
+  @Input()
+  public receivesHearbeat: boolean | undefined;
+
   public midPoint: Point | undefined;
   ngOnInit(): void {
     if (!this.line) throw Error('No line provided');
-
     this.midPoint = new Point(0, 0);
     this.midPoint.X = (this.line.start.X + this.line.end.X) / 2;
     this.midPoint.Y = (this.line.start.Y + this.line.end.Y) / 2;
