@@ -16,6 +16,7 @@ import (
 	raftServer "github.com/mmaterowski/raft/server"
 	"github.com/mmaterowski/raft/utils/consts"
 	"github.com/mmaterowski/raft/utils/helpers"
+	raftWs "github.com/mmaterowski/raft/ws"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 )
@@ -34,7 +35,7 @@ func StartApplication() {
 	raftServer.Raft.StartServer(serverId, isLocalEnvironment(env), isIntegrationTesting(env))
 
 	go handleRPC()
-
+	go raftWs.AppHub.Run()
 	raftServer.Raft.SetupElection()
 
 	raftServer.Raft.StartHeartbeat()

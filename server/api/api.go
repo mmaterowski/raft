@@ -8,7 +8,6 @@ import (
 	"strconv"
 
 	"github.com/gorilla/mux"
-	"github.com/gorilla/websocket"
 	command "github.com/mmaterowski/raft/command"
 	"github.com/mmaterowski/raft/model/entry"
 	server_model "github.com/mmaterowski/raft/model/server"
@@ -17,7 +16,7 @@ import (
 	"github.com/mmaterowski/raft/utils/consts"
 	rest_errors "github.com/mmaterowski/raft/utils/errors"
 	"github.com/mmaterowski/raft/utils/helpers"
-	raft_ws "github.com/mmaterowski/raft/ws/"
+	raft_ws "github.com/mmaterowski/raft/ws"
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/matryer/respond.v1"
 )
@@ -60,38 +59,8 @@ func HandleRequests() {
 }
 
 func wsEndpoint(w http.ResponseWriter, r *http.Request) {
-	upgrader.CheckOrigin = func(r *http.Request) bool { return true }
-	ws, err := upgrader.Upgrade(w, r, nil)
-	if err != nil {
-		log.Println(err)
-	}
-	log.Println("Client Connected")
-	_ = ws.WriteJSON(`{"message":"Hi Client!"}`)
-	raft_ws.Reader(ws)
+	raft_ws.ServerWs(raft_ws.AppHub, w, r)
 
-}
-
-func reader(conn *websocket.Conn) {
-	for {
-		// read in a message
-		messageType, p, err := conn.ReadMessage()
-		if err != nil {
-			log.Println(err)
-			return
-		}
-		// print out that message for clarity
-		fmt.Println(string(p))
-		if err := conn.WriteMessage(messageType, p); err != nil {
-			log.Println(err)
-			return
-		}
-
-	}
-}
-
-var upgrader = websocket.Upgrader{
-	ReadBufferSize:  1024,
-	WriteBufferSize: 1024,
 }
 
 func getStatus(w http.ResponseWriter, r *http.Request) {

@@ -15,6 +15,7 @@ import (
 	"github.com/mmaterowski/raft/utils/consts"
 	"github.com/mmaterowski/raft/utils/guard"
 	"github.com/mmaterowski/raft/utils/helpers"
+	raftWs "github.com/mmaterowski/raft/ws"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -73,7 +74,6 @@ func (s *server) StartServer(id string, isLocalEnv bool, isIntegrationTesting bo
 	Id = id
 
 	s.IdentifyServer(isLocalEnv)
-	Type = model.Candidate
 	state := make(map[string]entry.Entry)
 	State.Entries = &state
 	State.PreviousEntryIndex = consts.NoPreviousEntryValue
@@ -140,7 +140,6 @@ func (s *server) RebuildStateFromLog() bool {
 		(*State.Entries)[entry.Key] = entry
 		State.CommitIndex = entry.Index
 	}
-	// raft_signalr.AppHub.SendServerTypeChanged(Id, Type)
 	log.Infof(logRebuiltInfo, helpers.PrettyPrint(entries))
 	return true
 }
@@ -154,23 +153,23 @@ func (s *server) CommitEntries(leaderCommitIndex int) error {
 		nextEntryIndexToCommit := State.CommitIndex + 1
 		entry, err := persistence.Repository.GetEntryAtIndex(context.Background(), nextEntryIndexToCommit)
 		if err != nil {
-			log.Println("Error while commiting entry to state.")
 			if err == sql.ErrNoRows {
-				log.Print("Follower does not have yet all entries in log")
+				log.WithField("Error", err).Error("Follower does not have yet all entries in log")
 				break
 			}
-			log.Println(err)
+			log.WithField("Error", err).Error("Error while commiting entry to state.")
+
 			if Type == model.Leader {
 				Type = model.Follower
-				log.Printf("Server state set Leader->Follower")
+				raftWs.AppHub.ServerTypeChangedMessage(Id, Type)
+				log.Info("Server state set Leader->Follower")
 			}
 			break
 		} else {
 			log.Print("Commiting new entry to state. Key: ", entry.Key, " Entry: ", entry)
-
-			// raft_signalr.AppHub.SendStateUpdated(Id, entry.Key, entry.Value)
 			(*State.Entries)[entry.Key] = *entry
 			State.CommitIndex++
+			raftWs.AppHub.SendNewKeyUpdatedMessage(Id, entry.Key, entry.Value)
 
 		}
 
@@ -208,6 +207,7 @@ func (server *server) SetupElection() {
 
 				mu.Lock()
 				Type = model.Candidate
+				raftWs.AppHub.ServerTypeChangedMessage(Id, Type)
 				heartbeatTicker.Stop()
 				mu.Unlock()
 
@@ -236,6 +236,7 @@ func (server *server) SetupElection() {
 						if reply.VoteGranted && reply.Term <= int32(State.CurrentTerm) && Type != model.Leader {
 							log.WithField("Leader", Id).Info("Becoming a leader")
 							Type = model.Leader
+							raftWs.AppHub.ServerTypeChangedMessage(Id, Type)
 							server.RebuildStateFromLog()
 							triggerHeartbeat <- struct{}{}
 							Election.ResetTicker <- struct{}{}
@@ -280,6 +281,7 @@ func (server *server) StartHeartbeat() {
 func (server *server) BecomeFollower() {
 	heartbeatTicker.Stop()
 	Type = model.Follower
+	raftWs.AppHub.ServerTypeChangedMessage(Id, Type)
 }
 
 func (server *server) ApplyEntryToState(entry *entry.Entry) {

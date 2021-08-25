@@ -2,7 +2,8 @@ package server
 
 import (
 	"context"
-	"log"
+
+	log "github.com/sirupsen/logrus"
 
 	"github.com/mmaterowski/raft/model/entry"
 	"github.com/mmaterowski/raft/model/server"
@@ -10,6 +11,7 @@ import (
 	"github.com/mmaterowski/raft/rpc/raft_rpc"
 	raftServer "github.com/mmaterowski/raft/server"
 	"github.com/mmaterowski/raft/utils/helpers"
+	raftWs "github.com/mmaterowski/raft/ws"
 )
 
 type Server struct {
@@ -65,8 +67,8 @@ func (s *Server) AppendEntries(ctx context.Context, in *raft_rpc.AppendEntriesRe
 	var lastEntryInSync bool
 	var entry *entry.Entry
 	if len(in.Entries) == 0 {
-		log.Printf("Heartbeat received")
-		// raft_signalr.Server.BroadcastToRoom("", "bcast", raft_signalr.HeartbeatReceivedMessage, raftServer.Id)
+		log.Info("Heartbeat received")
+		raftWs.AppHub.SendHeartbeatReceivedMessage(raftServer.Id)
 		entry, _ = persistence.Repository.GetLastEntry(ctx)
 		lastEntryInSync = isLastEntryInSync(int(in.PreviousLogIndex), int(in.PreviousLogTerm), *entry)
 

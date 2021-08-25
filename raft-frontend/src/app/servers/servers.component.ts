@@ -1,5 +1,5 @@
 import { Component, ElementRef, OnInit, ViewChild } from '@angular/core';
-import { WebsocketService } from '../core/services/signalR.service';
+import { WebsocketService } from '../core/services/ws.service';
 import * as d3 from '../custom-d3';
 import { Line } from '../model/line';
 import { Point } from '../model/point';
@@ -21,7 +21,23 @@ export class ServersComponent implements OnInit {
   public kimToLaszloHeart: Line | undefined;
   public laszlo: Circle | undefined;
   public kim: Circle | undefined;
+  public kimEntries: { key: string; value: number }[] = [
+    { key: 'sx34xfsdf', value: 12 },
+    { key: 'sxxxscsdf', value: 12 },
+    { key: 'sxxxxxfssdfdf', value: 52 },
+  ];
+  public laszloEntries: { key: string; value: number }[] = [
+    { key: 'kjl', value: 182 },
+    { key: 'lkj', value: 12 },
+    { key: 'sxxxxxfssdfdf', value: 22 },
+  ];
 
+  public rickyEntries: { key: string; value: number }[] = [
+    { key: 'jeba', value: 32225 },
+    { key: 'c', value: 1 },
+    { key: 'telewije', value: 334 },
+    { key: 'polska', value: 53 },
+  ];
   constructor(private wsService: WebsocketService) {}
 
   ngOnInit(): void {
@@ -30,6 +46,25 @@ export class ServersComponent implements OnInit {
     this.wsService.connect('Kim');
     this.wsService.connect('Laszlo');
     this.wsService.connect('Ricky');
+
+    this.wsService.heartbeatReceived$.subscribe((r) => console.log(r));
+    this.wsService.keyUpdated$.subscribe((r) => {
+      if (r.serverId == 'Kim') {
+        this.kimEntries.push({ key: r.key, value: r.value });
+        this.kimEntries = this.kimEntries.reverse();
+      }
+
+      if (r.serverId == 'Ricky') {
+        this.rickyEntries.push({ key: r.key, value: r.value });
+        this.rickyEntries = this.rickyEntries.reverse();
+      }
+
+      if (r.serverId == 'Laszlo') {
+        this.laszloEntries.push({ key: r.key, value: r.value });
+        this.laszloEntries = this.laszloEntries.reverse();
+      }
+    });
+    this.wsService.serverTypeChanged$.subscribe((r) => console.log(r));
     // this.signalR.addHeartbeatListener();
     // this.signalR.addServerTypeChangedListener();
     // this.signalR.addStateUpdateListener();
@@ -56,9 +91,6 @@ export class ServersComponent implements OnInit {
     );
   }
 
-  public sendMessage() {
-    this.wsService.sendMessage('Jedziemyyy');
-  }
   private setupPanAndZoom() {
     const d3ElemContainer = d3.select(
       this.canvasContainer?.nativeElement as any

@@ -1,5 +1,4 @@
 <p>servers works!</p>
-<button (click)="this.sendMessage()">SILJ</button>
 <svg:svg #canvasContainer viewBox="0 0 600 300" class="canvas">
   <g #canvasViewBox>
     <g app-heartbeat [line]="rickyToLaszloHeart" [receivesHearbeat]="true"></g>
@@ -10,3 +9,65 @@
     <g app-server [circle]="laszlo"></g>
   </g>
 </svg:svg>
+<div class="container">
+  <table>
+    <div class="child">Kim events</div>
+    <tr>
+      <th>Key</th>
+      <th>Value</th>
+    </tr>
+    <tr *ngFor="let item of kimEntries">
+      <td>{{ item.key }}</td>
+      <td>{{ item.value }}</td>
+    </tr>
+  </table>
+  <div class="container">
+    <table>
+      <div class="child">Laszlo events</div>
+      <tr>
+        <th>Key</th>
+        <th>Value</th>
+      </tr>
+      <tr *ngFor="let item of laszloEntries">
+        <td>{{ item.key }}</td>
+        <td>{{ item.value }}</td>
+      </tr>
+    </table>
+    <table>
+      <div class="child">Ricky events</div>
+      <tr>
+        <th>Key</th>
+        <th>Value</th>
+      </tr>
+      <tr *ngFor="let item of rickyEntries">
+        <td>{{ item.key }}</td>
+        <td>{{ item.value }}</td>
+      </tr>
+    </table>
+    <!--
+<table>
+  <ng-container *ngFor="let entry of laszloEntries">
+    <tr>
+      <td>
+        <h2>{{ group.name }}</h2>
+      </td>
+    </tr>
+    <tr *ngFor="let item of group.items">
+      <td>{{ item }}</td>
+    </tr>
+  </ng-container>
+</table>
+<table>
+  <ng-container *ngFor="let entry of rickyEntries">
+    <tr>
+      <td>
+        <h2>{{ group.name }}</h2>
+      </td>
+    </tr>
+    <tr *ngFor="let item of group.items">
+      <td>{{ item }}</td>
+    </tr>
+  </ng-container>
+</table> -->
+  </div>
+</div>
