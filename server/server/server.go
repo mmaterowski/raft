@@ -167,6 +167,8 @@ func (s *server) CommitEntries(leaderCommitIndex int) error {
 			break
 		} else {
 			log.Print("Commiting new entry to state. Key: ", entry.Key, " Entry: ", entry)
+
+			// raft_signalr.AppHub.SendStateUpdated(Id, entry.Key, entry.Value)
 			(*State.Entries)[entry.Key] = *entry
 			State.CommitIndex++
 

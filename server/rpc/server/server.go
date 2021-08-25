@@ -66,6 +66,7 @@ func (s *Server) AppendEntries(ctx context.Context, in *raft_rpc.AppendEntriesRe
 	var entry *entry.Entry
 	if len(in.Entries) == 0 {
 		log.Printf("Heartbeat received")
+		// raft_signalr.Server.BroadcastToRoom("", "bcast", raft_signalr.HeartbeatReceivedMessage, raftServer.Id)
 		entry, _ = persistence.Repository.GetLastEntry(ctx)
 		lastEntryInSync = isLastEntryInSync(int(in.PreviousLogIndex), int(in.PreviousLogTerm), *entry)
 

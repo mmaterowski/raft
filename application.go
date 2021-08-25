@@ -3,19 +3,23 @@ package app
 import (
 	"fmt"
 	"net"
+	"net/http"
 	"os"
 	"strconv"
 
 	nested "github.com/antonfisher/nested-logrus-formatter"
 	"github.com/gin-gonic/gin"
+	socketio "github.com/googollee/go-socket.io"
 	api "github.com/mmaterowski/raft/api"
 	"github.com/mmaterowski/raft/persistence"
 	rpcClient "github.com/mmaterowski/raft/rpc/client"
 	protoBuff "github.com/mmaterowski/raft/rpc/raft_rpc"
 	rpcServer "github.com/mmaterowski/raft/rpc/server"
 	raftServer "github.com/mmaterowski/raft/server"
+	raft_signalr "github.com/mmaterowski/raft/signalr"
 	"github.com/mmaterowski/raft/utils/consts"
 	"github.com/mmaterowski/raft/utils/helpers"
+	"github.com/rs/cors"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 )
@@ -35,6 +39,9 @@ func StartApplication() {
 
 	go handleRPC()
 
+	//SETUP SOCKETSIO WITH CORS PROPERLY
+	go handleSocketIo(getSocketPort(env))
+
 	raftServer.Raft.SetupElection()
 
 	raftServer.Raft.StartHeartbeat()
@@ -43,10 +50,66 @@ func StartApplication() {
 	api.HandleRequests()
 }
 
+func handleSocketIo(port string) {
+	server := socketio.NewServer(nil)
+
+	server.OnConnect("/", func(s socketio.Conn) error {
+		s.SetContext("")
+		fmt.Println("connected:", s.ID())
+		return nil
+	})
+
+	server.OnEvent("/", "notice", func(s socketio.Conn, msg string) {
+		fmt.Println("notice:", msg)
+		s.Emit("reply", "have "+msg)
+	})
+
+	server.OnEvent("/chat", "msg", func(s socketio.Conn, msg string) string {
+		s.SetContext(msg)
+		return "recv " + msg
+	})
+
+	server.OnEvent("/", raft_signalr.HeartbeatReceivedMessage, func(s socketio.Conn, msg string) string {
+		s.SetContext(msg)
+		return "recv " + msg
+	})
+
+	server.OnEvent("/", "bye", func(s socketio.Conn) string {
+		last := s.Context().(string)
+		s.Emit("bye", last)
+		s.Close()
+		return last
+	})
+
+	server.OnError("/", func(s socketio.Conn, e error) {
+		fmt.Println("meet error:", e)
+	})
+
+	server.OnDisconnect("/", func(s socketio.Conn, reason string) {
+		fmt.Println("closed", reason)
+	})
+
+	go server.Serve()
+	defer server.Close()
+
+	http.Handle("/socket.io/", server)
+	log.Println("Serving ws at: " + port)
+	handler := cors.Default().Handler(server)
+	log.Fatal(http.ListenAndServeTLS(":"+port, "./localhost.crt", "./localhost.key", handler))
+}
+
 func getApiPort(env string) string {
 	port := os.Getenv("SERVER_PORT")
 	if isLocalEnvironment(env) {
 		port = strconv.Itoa(consts.LocalApiPort)
+	}
+	return port
+}
+
+func getSocketPort(env string) string {
+	port := os.Getenv("SERVER_SIGNALR_PORT")
+	if isLocalEnvironment(env) {
+		port = strconv.Itoa(consts.LocalSignalRPort)
 	}
 	return port
 }

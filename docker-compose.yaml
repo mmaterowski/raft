@@ -4,6 +4,7 @@ services:
         build: ./server
         ports:
           - "6969:6969"
+          - "6979:6979"
         expose: 
           - "6960"
         environment:
@@ -17,6 +18,7 @@ services:
         build: ./server
         ports:
             - "6970:6970"
+            - "6980:6980"
         expose: 
             - "6960"
         environment:
@@ -30,6 +32,7 @@ services:
         build: ./server
         ports:
             - "6971:6971"
+            - "6981:6981"
         expose: 
             - "6960"
         environment:

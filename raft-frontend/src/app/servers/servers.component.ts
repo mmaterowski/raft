@@ -1,4 +1,5 @@
 import { Component, ElementRef, OnInit, ViewChild } from '@angular/core';
+import { WebsocketService } from '../core/services/signalR.service';
 import * as d3 from '../custom-d3';
 import { Line } from '../model/line';
 import { Point } from '../model/point';
@@ -21,10 +22,20 @@ export class ServersComponent implements OnInit {
   public laszlo: Circle | undefined;
   public kim: Circle | undefined;
 
-  constructor() {}
+  constructor(private wsService: WebsocketService) {}
 
   ngOnInit(): void {
     this.setupPanAndZoom();
+    this.prepareHeartbeats();
+    this.wsService.connect('Kim');
+    this.wsService.connect('Laszlo');
+    this.wsService.connect('Ricky');
+    // this.signalR.addHeartbeatListener();
+    // this.signalR.addServerTypeChangedListener();
+    // this.signalR.addStateUpdateListener();
+  }
+
+  private prepareHeartbeats() {
     this.ricky = new Circle(300, 200, 20, 'chartreuse', 'Ricky');
     this.kim = new Circle(200, 100, 20, 'chartreuse', 'Kim');
     this.laszlo = new Circle(400, 100, 20, 'chartreuse', 'Laszlo');
@@ -45,6 +56,9 @@ export class ServersComponent implements OnInit {
     );
   }
 
+  public sendMessage() {
+    this.wsService.sendMessage('Jedziemyyy');
+  }
   private setupPanAndZoom() {
     const d3ElemContainer = d3.select(
       this.canvasContainer?.nativeElement as any
